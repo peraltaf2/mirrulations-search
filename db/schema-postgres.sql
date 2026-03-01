@@ -87,6 +87,7 @@ CREATE TABLE IF NOT EXISTS documents (
 CREATE TABLE IF NOT EXISTS cfrparts (
     document_id VARCHAR(50) NOT NULL PRIMARY KEY REFERENCES documents(document_id),
     frDocNum VARCHAR(50),
+    title INT,
     cfrPart VARCHAR(50)
 );
 
