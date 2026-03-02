@@ -23,7 +23,7 @@ else:
 class DBLayer:
     conn: Any = None
 
-    def search(
+    def search(  # pylint: disable=unused-argument
             self,
             query: str,
             document_type_param: str = None,
