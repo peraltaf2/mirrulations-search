@@ -21,12 +21,17 @@ export default function ResultsPanel({ results }) {
             <p><strong>Agency:</strong> {item.agency_id}</p>
             <p><strong>Docket-ID:</strong> {item.docket_id}</p>
             <p><strong>Docket type:</strong> {item.docket_type}</p>
-            <a href={CFR_BASE_URL}>
-            <p>
-              <strong>CFR:</strong>{" "}
-              {item.cfrPart.map(p => p.part).join(", ")}
+           <p>
+            <strong>CFR:</strong>{" "}
+               {item.cfrPart.map((p, index) => (
+                 <span key={index}>
+             <a href={p.link} target="_blank" rel="noopener noreferrer">
+             {p.part}
+           </a>
+             {index < item.cfrPart.length - 1 && ", "}
+            </span>
+             ))}
             </p>
-            </a>
             <p><strong>Last modified date:</strong> {item.modify_date}</p>
           </div>
 
