@@ -19,6 +19,8 @@ const [agencySearch, setAgencySearch] = useState("");
 const [selectedAgencies, setSelectedAgencies] = useState(new Set());
 const [status, setStatus] = useState(new Set());
 const [selectedCfrParts, setSelectedCfrParts] = useState(new Set());
+const [page, setPage] = useState(1);
+const [pagination, setPagination] = useState(null);
 const TOP_AGENCIES = [
     { code: "EPA", name: "Environmental Protection Agency" },
     { code: "HHS", name: "Health and Human Services" },
@@ -43,13 +45,15 @@ const activeCount =
     selectedAgencies.size +
     status.size +
     selectedCfrParts.size;
-const runSearch = async () => {
+const runSearch = async (newPage = 1) => {
 const selectedAgencyList = Array.from(selectedAgencies);
 const firstAgency = selectedAgencyList[selectedAgencyList.length - 1] || ""
 const selectedCfrList = Array.from(selectedCfrParts);
 const firstCfr = selectedCfrList[selectedCfrList.length - 1] || "";
-const data = await searchDockets(query, docType, firstAgency, firstCfr)
-    setResults(data);
+const data = await searchDockets(query, docType, firstAgency, firstCfr, newPage)
+    setResults(data.results);
+    setPagination(data.pagination);
+    setPage(newPage);
   };
 const advancedPayload = {
     yearFrom,
@@ -97,7 +101,7 @@ setStatus={setStatus}
 selectedCfrParts={selectedCfrParts}
 setSelectedCfrParts={setSelectedCfrParts}
 clearAdvanced={clearAdvanced}
-applyAdvanced={runSearch}
+applyAdvanced={() => runSearch(1)}
 activeCount={activeCount}
 />
 <main className="main">
@@ -111,7 +115,7 @@ query={query}
 setQuery={setQuery}
 onSubmit={(e) => {
               e.preventDefault();
-              runSearch();
+              runSearch(1);
             }}
 />
 <ResultsPanel
@@ -119,8 +123,13 @@ advancedPayload={advancedPayload}
 results={results}
 />
 <div className="pagination-div">
-  <button className="page-button"><ArrowLeftIcon color="white" size={32}/></button>
-  <button className="page-button"><ArrowRightIcon color="white" size={32}/></button>
+  <button className="page-button" disabled={!pagination?.hasPrev} onClick={() => runSearch(page - 1)}><ArrowLeftIcon color="white" size={32}/></button>
+
+  <span className="page-info">
+    Page {pagination?.page} of {pagination?.totalPages}
+  </span>
+
+  <button className="page-button" disabled={!pagination?.hasNext} onClick={() => runSearch(page + 1)}><ArrowRightIcon color="white" size={32}/></button>
 </div>
 </main>
 </div>
