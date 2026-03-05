@@ -25,18 +25,18 @@ class DBLayer:
     def search(
             self,
             query: str,
-            docket_type_param: List[str] = None,
+            docket_type_param: str = None,
             agency: List[str] = None,
-            cfr_part_param: str = None) \
+            cfr_part_param: List[str] = None) \
             -> List[Dict[str, Any]]:
         if self.conn is None:
             return []
         return self._search_dockets_postgres(query, docket_type_param, agency, cfr_part_param)
 
     def _search_dockets_postgres(  # pylint: disable=too-many-locals
-            self, query: str, docket_type_param: List[str] = None,
+            self, query: str, docket_type_param: str = None,
             agency: List[str] = None,
-            cfr_part_param: str = None) -> List[Dict[str, Any]]:
+            cfr_part_param: List[str] = None) -> List[Dict[str, Any]]:
         sql = """
             SELECT DISTINCT
                 d.docket_id,
@@ -56,7 +56,7 @@ class DBLayer:
         params = [f"%{(query or '').strip().lower()}%"]
 
         if docket_type_param:
-            sql += " AND d.docket_type = ANY(%s)"
+            sql += " AND d.docket_type = %s"
             params.append(docket_type_param)
 
         if agency:
@@ -65,8 +65,9 @@ class DBLayer:
             params.extend(f"%{a}%" for a in agency)
 
         if cfr_part_param:
-            sql += " AND cp.cfrPart ILIKE %s"
-            params.append(f"%{cfr_part_param}%")
+            clauses = " OR ".join("cp.cfrPart ILIKE %s" for _ in cfr_part_param)
+            sql += f" AND ({clauses})"
+            params.extend(f"%{c}%" for c in cfr_part_param)
 
         sql += " ORDER BY d.docket_id, cp.title, cp.cfrPart LIMIT 50"
 
