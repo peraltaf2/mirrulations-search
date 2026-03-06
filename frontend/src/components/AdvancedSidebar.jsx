@@ -47,7 +47,7 @@ export default function AdvancedSidebar({
   applyAdvanced,
   activeCount,
 }) {
-  const docTypes = ["Rulemaking", "Non-Rulemaking"];
+  const docTypes = ["Rulemaking", "Nonrulemaking"];
   //const statuses = ["Open", "Closed", "Pending"];
   const [agencyOrder, setAgencyOrder] = useState([]);
   /*const cfrParts = Array.from({ length: 200 }, (_, i) => i + 1);
