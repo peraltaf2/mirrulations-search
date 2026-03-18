@@ -33,6 +33,14 @@ class DBLayer:
             return []
         return self._search_dockets_postgres(query, docket_type_param, agency, cfr_part_param)
 
+    def _get_cfr_docket_ids(self, cfr_part_param: List[str]) -> set:
+        clauses = " OR ".join("cfr_part ILIKE %s" for _ in cfr_part_param)
+        sql = f"SELECT DISTINCT docket_id FROM federal_register_documents WHERE ({clauses})"
+        params = [f"%{c}%" for c in cfr_part_param]
+        with self.conn.cursor() as cur:
+            cur.execute(sql, params)
+            return {row[0] for row in cur.fetchall()}
+
     def _search_dockets_postgres(  # pylint: disable=too-many-locals
             self, query: str, docket_type_param: str = None,
             agency: List[str] = None,
@@ -64,11 +72,6 @@ class DBLayer:
             sql += f" AND ({clauses})"
             params.extend(f"%{a}%" for a in agency)
 
-        if cfr_part_param:
-            clauses = " OR ".join("cp.cfrPart ILIKE %s" for _ in cfr_part_param)
-            sql += f" AND ({clauses})"
-            params.extend(f"%{c}%" for c in cfr_part_param)
-
         sql += " ORDER BY d.modify_date DESC, d.docket_id, cp.title, cp.cfrPart LIMIT 50"
 
         with self.conn.cursor() as cur:
@@ -76,10 +79,16 @@ class DBLayer:
             dockets = {}
             for row in cur.fetchall():
                 self._process_docket_row(dockets, row)
-            return [
+            results = [
                 {**d, "cfr_refs": list(d["cfr_refs"].values())}
                 for d in dockets.values()
             ]
+
+        if cfr_part_param:
+            cfr_docket_ids = self._get_cfr_docket_ids(cfr_part_param)
+            results = [r for r in results if r["docket_id"] in cfr_docket_ids]
+
+        return results
 
     @staticmethod
     def _process_docket_row(dockets, row):
