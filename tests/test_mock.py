@@ -267,5 +267,3 @@ def test_text_match_terms_no_results(db):
     """Returns empty list for nonexistent term"""
     result = db.text_match_terms(["nonexistent"])
     assert result == []
-
-    
