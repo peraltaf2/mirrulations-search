@@ -572,3 +572,4 @@ def test_text_match_terms_docket_only_in_comments():
     assert results[0]["docket_id"] == "COMMENT-ONLY"
     assert results[0]["document_match_count"] == 0
     assert results[0]["comment_match_count"] == 10
+    
