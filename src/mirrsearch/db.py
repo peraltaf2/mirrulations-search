@@ -95,22 +95,22 @@ class DBLayer:
             results = [r for r in results if r["docket_id"] in cfr_docket_ids]
 
         return results
-    
-    """
-    This function will compile a list of docket ids of the dockets 
-    whose title matches the search term. Returns a set of unique ids.
-    """
+
     def _search_dockets_by_title(self, query: str) -> set:
+        """
+        Compile a list of docket ids of the dockets
+        whose title matches the search term. Returns a set of unique ids.
+        """
         sql = "SELECT docket_id FROM dockets WHERE docket_title ILIKE %s"
         with self.conn.cursor() as cur:
             cur.execute(sql, [f"%{(query or '').strip().lower()}%"])
             return {row[0] for row in cur.fetchall()}
 
-    """
-    This function will compile a list of docket ids of the dockets whose
-    cfr parts match the filter parameters. Returns a set of unique ids.
-    """
     def _search_dockets_by_cfr(self, cfr_part_param: List[Dict[str, str]]) -> set:
+        """
+        Compile a list of docket ids of the dockets whose
+        cfr parts match the filter parameters. Returns a set of unique ids.
+        """
         if not cfr_part_param:
             return set()
         clauses = " OR ".join(
@@ -125,34 +125,34 @@ class DBLayer:
         with self.conn.cursor() as cur:
             cur.execute(sql, params)
             return {row[0] for row in cur.fetchall()}
-    
-    """
-    This function will compile a list of docket ids of the dockets that hold
-    documents whose title matches the search term. (Docket title does not have 
-    to match). Return a set of unique ids.
-    """
+
     def _search_dockets_by_document_title(self, query: str) -> set:
+        """
+        Compile a list of docket ids of the dockets that hold
+        documents whose title matches the search term. (Docket title does not have
+        to match). Return a set of unique ids.
+        """
         sql = "SELECT DISTINCT docket_id FROM documents WHERE document_title ILIKE %s"
         with self.conn.cursor() as cur:
             cur.execute(sql, [f"%{(query or '').strip().lower()}%"])
             return {row[0] for row in cur.fetchall()}
-    
-    """
-    This function will join the 3 sets together with the union operator so that 
-    there are no repeated docket ids listed.
-    """
+
     def _join_results(self, title_ids: set, cfr_ids: set, doc_title_ids: set) -> set:
+        """
+        Join the 3 sets together with the union operator so that
+        there are no repeated docket ids listed.
+        """
         return title_ids | cfr_ids | doc_title_ids
 
-    """
-    This function will return the list of all the unique dockets & the corresponding
-    information needed for the frontend display by joining tables & pulling out the
-    right fields for each docket.
-    """
-    def _search_dockets(
+    def _search_dockets(  # pylint: disable=too-many-locals
             self, query: str, docket_type_param: str = None,
             agency: List[str] = None,
             cfr_part_param: List[str] = None) -> List[Dict[str, Any]]:
+        """
+        Return the list of all the unique dockets & the corresponding
+        information needed for the frontend display by joining tables & pulling out the
+        right fields for each docket.
+        """
         title_ids = self._search_dockets_by_title(query)
         cfr_ids = self._search_dockets_by_cfr(cfr_part_param or [])
         doc_title_ids = self._search_dockets_by_document_title(query)
@@ -199,7 +199,7 @@ class DBLayer:
                 {**d, "cfr_refs": list(d["cfr_refs"].values())}
                 for d in dockets.values()
             ]
-    
+
 
     @staticmethod
     def _process_docket_row(dockets, row):

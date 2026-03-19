@@ -390,7 +390,8 @@ def test_join_results_combines_all_three_sets():
 def test_join_results_deduplicates_across_sets():
     """Docket ids appearing in multiple sets are only included once"""
     db = DBLayer()
-    result = db._join_results({"DOC-001", "DOC-002"}, {"DOC-002", "DOC-003"}, {"DOC-001", "DOC-003"})
+    result = db._join_results({"DOC-001", "DOC-002"}, {"DOC-002", "DOC-003"},
+                              {"DOC-001", "DOC-003"})
     assert result == {"DOC-001", "DOC-002", "DOC-003"}
     assert len(result) == 3
 
