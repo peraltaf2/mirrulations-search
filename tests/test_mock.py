@@ -192,15 +192,20 @@ def test_search_cfr_part_filter_no_match(db):
     assert result == []
 
 
-# --- opensearch text match ---
+# --- OpenSearch text_match_terms tests ---
 
 def test_text_match_terms_returns_list(db):
+    """Search term returns a list of results"""
     result = db.text_match_terms(["medicare"])
     assert isinstance(result, list)
 
-def test_text_match_terms_has_correct_structure(db):
+def test_text_match_terms_structure(db):
+    """Results contain correct structure"""
     result = db.text_match_terms(["medicare"])
     for item in result:
         assert "docket_id" in item
-        assert "doc_count" in item
-        assert "comment_count" in item
+        assert "document_match_count" in item
+        assert "comment_match_count" in item
+        assert isinstance(item["docket_id"], str)
+        assert isinstance(item["document_match_count"], int)
+        assert isinstance(item["comment_match_count"], int)
