@@ -71,3 +71,21 @@ class MockDBLayer:  # pylint: disable=too-few-public-methods
                 if any(c.lower() in item["cfrPart"].lower() for c in cfr_part_param)
             ]
         return results
+
+    def text_match_terms(self, terms: List[str]) -> List[Dict[str, Any]]:
+        """
+        Mock version: return hardcoded results for testing
+        """
+        # Return some fake results that match the structure
+        return [
+            {
+                "docket_id": "CMS-2025-0240",
+                "doc_count": 5,
+                "comment_count": 150
+            },
+            {
+                "docket_id": "CMS-2024-0123",
+                "doc_count": 3,
+                "comment_count": 75
+            }
+        ]

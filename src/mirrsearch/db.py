@@ -102,6 +102,18 @@ class DBLayer:
                 }
             dockets[docket_id]["cfr_refs"][title]["cfrParts"][cfr_part] = link
 
+    def text_match_terms(self, terms: List[str]) -> List[Dict[str, Any]]:
+        """
+        Search OpenSearch for dockets matching the given terms.
+        Returns list of {docket_id, doc_count, comment_count}
+        """
+        if self.conn is None:
+            return []
+
+        # Placeholder, replace with actual OpenSearch query when we have real data
+        # For now, just return empty list
+        return []
+
 
 def _get_secrets_from_aws() -> Dict[str, str]:
     if boto3 is None:

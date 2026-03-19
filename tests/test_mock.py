@@ -190,3 +190,17 @@ def test_search_cfr_part_filter_no_match(db):
     """cfr_part_param returns empty when no match"""
     result = db.search("", cfr_part_param=["999"])
     assert result == []
+
+
+# --- opensearch text match ---
+
+def test_text_match_terms_returns_list(db):
+    result = db.text_match_terms(["medicare"])
+    assert isinstance(result, list)
+
+def test_text_match_terms_has_correct_structure(db):
+    result = db.text_match_terms(["medicare"])
+    for item in result:
+        assert "docket_id" in item
+        assert "doc_count" in item
+        assert "comment_count" in item
