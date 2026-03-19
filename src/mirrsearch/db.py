@@ -102,7 +102,8 @@ class DBLayer:
                 }
             dockets[docket_id]["cfr_refs"][title]["cfrParts"][cfr_part] = link
 
-    def text_match_terms(self, terms: List[str], opensearch_client=None) -> List[Dict[str, Any]]:
+    def text_match_terms(  # pylint: disable=too-many-locals
+        self, terms: List[str], opensearch_client=None) -> List[Dict[str, Any]]:
         """
         Search OpenSearch for dockets containing the given terms.
         Searches across both comments and documents indices.

@@ -391,7 +391,7 @@ class _FakeOpenSearch:  # pylint: disable=too-few-public-methods
                     }
                 }
             }
-        elif index == "comments":
+        if index == "comments":
             return {
                 "aggregations": {
                     "by_docket": {
@@ -475,47 +475,42 @@ def test_text_match_terms_meaningful_use_query():
     assert results[0]["comment_match_count"] == 2
 
 
-def test_text_match_terms_builds_correct_queries():
-    """Verify the OpenSearch queries are structured correctly for both indices"""
-    fake_client = _FakeOpenSearch([], [])
-    db = DBLayer()
-
-    terms = ["medicare", "medicaid"]
-    db.text_match_terms(terms, opensearch_client=fake_client)
-
-    # Should have made 2 searches
-    assert len(fake_client.searches) == 2
-
-    # --- DOCUMENTS QUERY ---
-    doc_index, doc_body = fake_client.searches[0]
+def _assert_documents_query(searches, terms):
+    doc_index, doc_body = searches[0]
     assert doc_index == "documents"
     assert doc_body["size"] == 0
-
-    # Check multi_match is used
     should_clauses = doc_body["query"]["bool"]["should"]
     assert len(should_clauses) == len(terms)
-
     for clause, term in zip(should_clauses, terms):
         assert "multi_match" in clause
         assert clause["multi_match"]["query"] == term
         assert set(clause["multi_match"]["fields"]) == {"title", "comment"}
-
     assert doc_body["aggs"]["by_docket"]["terms"]["field"] == "docketId.keyword"
 
-    # --- COMMENTS QUERY ---
-    comment_index, comment_body = fake_client.searches[1]
+
+def _assert_comments_query(searches, terms):
+    comment_index, comment_body = searches[1]
     assert comment_index == "comments"
     assert comment_body["size"] == 0
-
-    # Check match_phrase is used
     should_clauses = comment_body["query"]["bool"]["should"]
     assert len(should_clauses) == len(terms)
-
     for clause, term in zip(should_clauses, terms):
         assert "match_phrase" in clause
         assert clause["match_phrase"]["commentText"] == term
-
     assert comment_body["aggs"]["by_docket"]["terms"]["field"] == "docketId.keyword"
+
+
+def test_text_match_terms_builds_correct_queries():
+    """Verify the OpenSearch queries are structured correctly for both indices"""
+    fake_client = _FakeOpenSearch([], [])
+    db = DBLayer()
+    terms = ["medicare", "medicaid"]
+
+    db.text_match_terms(terms, opensearch_client=fake_client)
+
+    assert len(fake_client.searches) == 2
+    _assert_documents_query(fake_client.searches, terms)
+    _assert_comments_query(fake_client.searches, terms)
 
 
 def test_text_match_terms_returns_correct_structure():
