@@ -33,10 +33,16 @@ class DBLayer:
             return []
         return self._search_dockets_postgres(query, docket_type_param, agency, cfr_part_param)
 
-    def _get_cfr_docket_ids(self, cfr_part_param: List[str]) -> set:
-        clauses = " OR ".join("cfr_part ILIKE %s" for _ in cfr_part_param)
+    def _get_cfr_docket_ids(self, cfr_part_param: List[Dict[str, str]]) -> set:
+        clauses = " OR ".join(
+            "(cfr_title ILIKE %s AND cfr_part ILIKE %s)"
+            for _ in cfr_part_param
+        )
         sql = f"SELECT DISTINCT docket_id FROM federal_register_documents WHERE ({clauses})"
-        params = [f"%{c}%" for c in cfr_part_param]
+        params = []
+        for c in cfr_part_param:
+            params.append(f"%{c['title']}%")
+            params.append(f"%{c['part']}%")
         with self.conn.cursor() as cur:
             cur.execute(sql, params)
             return {row[0] for row in cur.fetchall()}
