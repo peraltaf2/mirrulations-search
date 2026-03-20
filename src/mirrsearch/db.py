@@ -106,80 +106,135 @@ class DBLayer:
         self, terms: List[str], opensearch_client=None) -> List[Dict[str, Any]]:
         """
         Search OpenSearch for dockets containing the given terms.
-        Searches across both comments and documents indices.
+        
+        Searches:
+        - documents index: title and comment fields
+        NOTE: Full document body text is NOT available in OpenSearch.
+        Only searching title and comment fields. Need to verify if this
+        is sufficient or if we need extracted document text added to OpenSearch.
+        - comments index: commentText field (phrase matching)
+        - comments_extracted_text index: extractedText field (from PDF attachments)
+        
         Returns list of {docket_id, document_match_count, comment_match_count}
         """
         if opensearch_client is None:
             opensearch_client = get_opensearch_connection()
 
         try:
-            # Search documents index
+            # Search documents index - title and comment fields only
+            # TODO: Verify with team if we need full document text or if title/comment is sufficient
             doc_query = {
                 "size": 0,
-                "query": {
-                    "bool": {
-                        "should": [
-                        {
-                            "multi_match": {
-                                "query": term,
-                                "fields": ["title", "comment"]
-                            }
-                        }
-                        for term in terms
-                    ],
-                        "minimum_should_match": 1
-                    }
-                },
                 "aggs": {
                     "by_docket": {
-                        "terms": {"field": "docketId.keyword", "size": 1000}
+                        "terms": {"field": "docketId.keyword", "size": 1000},
+                        "aggs": {
+                            "matching_docs": {
+                                "filter": {
+                                    "bool": {
+                                        "should": [
+                                            {"multi_match": {"query": term, "fields": ["title", "comment"]}}
+                                            for term in terms
+                                        ],
+                                        "minimum_should_match": 1
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
 
             doc_response = opensearch_client.search(index="documents", body=doc_query)
 
-            # Search comments index
+            # Search comments index - commentText field with phrase matching
             comment_query = {
                 "size": 0,
-                "query": {
-                    "bool": {
-                        "should": [
-                        {"match_phrase": {"commentText": term}}
-                        for term in terms
-                    ],
-                        "minimum_should_match": 1
-                    }
-                },
                 "aggs": {
                     "by_docket": {
-                        "terms": {"field": "docketId.keyword", "size": 1000}
+                        "terms": {"field": "docketId.keyword", "size": 1000},
+                        "aggs": {
+                            "matching_comments": {
+                                "filter": {
+                                    "bool": {
+                                        "should": [
+                                            {"match_phrase": {"commentText": term}}
+                                            for term in terms
+                                        ],
+                                        "minimum_should_match": 1
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
 
             comment_response = opensearch_client.search(index="comments", body=comment_query)
 
-            # Combine results
+            # Search comments_extracted_text index - extractedText from PDF attachments
+            extracted_query = {
+                "size": 0,
+                "aggs": {
+                    "by_docket": {
+                        "terms": {"field": "docketId.keyword", "size": 1000},
+                        "aggs": {
+                            "matching_extracted": {
+                                "filter": {
+                                    "bool": {
+                                        "should": [
+                                            {"match_phrase": {"extractedText": term}}
+                                            for term in terms
+                                        ],
+                                        "minimum_should_match": 1
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            extracted_response = opensearch_client.search(
+                index="comments_extracted_text", 
+                body=extracted_query
+            )
+
+            # Combine results - dictionary acts as implicit union
             docket_counts = {}
 
             # Process document results
             for bucket in doc_response["aggregations"]["by_docket"]["buckets"]:
                 docket_id = bucket["key"]
-                docket_counts.setdefault(docket_id, {
-                "document_match_count": 0,
-                "comment_match_count": 0
-            })
-                docket_counts[docket_id]["document_match_count"] = bucket["doc_count"]
+                match_count = bucket["matching_docs"]["doc_count"]
+                if match_count > 0:
+                    docket_counts.setdefault(docket_id, {
+                        "document_match_count": 0,
+                        "comment_match_count": 0
+                    })
+                    docket_counts[docket_id]["document_match_count"] = match_count
 
-            # Process comment results
+            # Process comment text results
             for bucket in comment_response["aggregations"]["by_docket"]["buckets"]:
                 docket_id = bucket["key"]
-                docket_counts.setdefault(docket_id, {
-                "document_match_count": 0,
-                "comment_match_count": 0
-            })
-                docket_counts[docket_id]["comment_match_count"] = bucket["doc_count"]
+                match_count = bucket["matching_comments"]["doc_count"]
+                if match_count > 0:
+                    docket_counts.setdefault(docket_id, {
+                        "document_match_count": 0,
+                        "comment_match_count": 0
+                    })
+                    docket_counts[docket_id]["comment_match_count"] += match_count
+
+            # Process extracted text results (counts as comments)
+            for bucket in extracted_response["aggregations"]["by_docket"]["buckets"]:
+                docket_id = bucket["key"]
+                match_count = bucket["matching_extracted"]["doc_count"]
+                if match_count > 0:
+                    docket_counts.setdefault(docket_id, {
+                        "document_match_count": 0,
+                        "comment_match_count": 0
+                    })
+                    docket_counts[docket_id]["comment_match_count"] += match_count
 
             # Format results
             results = []
