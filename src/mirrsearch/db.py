@@ -222,6 +222,100 @@ class DBLayer:
                 }
             dockets[docket_id]["cfr_refs"][title]["cfrParts"][cfr_part] = link
 
+    def text_match_terms(  # pylint: disable=too-many-locals
+        self, terms: List[str], opensearch_client=None) -> List[Dict[str, Any]]:
+        """
+        Search OpenSearch for dockets containing the given terms.
+        Searches across both comments and documents indices.
+        Returns list of {docket_id, document_match_count, comment_match_count}
+        """
+        if opensearch_client is None:
+            opensearch_client = get_opensearch_connection()
+
+        try:
+            # Search documents index
+            doc_query = {
+                "size": 0,
+                "query": {
+                    "bool": {
+                        "should": [
+                        {
+                            "multi_match": {
+                                "query": term,
+                                "fields": ["title", "comment"]
+                            }
+                        }
+                        for term in terms
+                    ],
+                        "minimum_should_match": 1
+                    }
+                },
+                "aggs": {
+                    "by_docket": {
+                        "terms": {"field": "docketId.keyword", "size": 1000}
+                    }
+                }
+            }
+
+            doc_response = opensearch_client.search(index="documents", body=doc_query)
+
+            # Search comments index
+            comment_query = {
+                "size": 0,
+                "query": {
+                    "bool": {
+                        "should": [
+                        {"match_phrase": {"commentText": term}}
+                        for term in terms
+                    ],
+                        "minimum_should_match": 1
+                    }
+                },
+                "aggs": {
+                    "by_docket": {
+                        "terms": {"field": "docketId.keyword", "size": 1000}
+                    }
+                }
+            }
+
+            comment_response = opensearch_client.search(index="comments", body=comment_query)
+
+            # Combine results
+            docket_counts = {}
+
+            # Process document results
+            for bucket in doc_response["aggregations"]["by_docket"]["buckets"]:
+                docket_id = bucket["key"]
+                docket_counts.setdefault(docket_id, {
+                "document_match_count": 0,
+                "comment_match_count": 0
+            })
+                docket_counts[docket_id]["document_match_count"] = bucket["doc_count"]
+
+            # Process comment results
+            for bucket in comment_response["aggregations"]["by_docket"]["buckets"]:
+                docket_id = bucket["key"]
+                docket_counts.setdefault(docket_id, {
+                "document_match_count": 0,
+                "comment_match_count": 0
+            })
+                docket_counts[docket_id]["comment_match_count"] = bucket["doc_count"]
+
+            # Format results
+            results = []
+            for docket_id, counts in docket_counts.items():
+                results.append({
+                    "docket_id": docket_id,
+                    "document_match_count": counts["document_match_count"],
+                    "comment_match_count": counts["comment_match_count"]
+                })
+
+            return results
+
+        except (KeyError, AttributeError) as e:
+            print(f"OpenSearch query failed: {e}")
+            return []
+
 
 def _get_secrets_from_aws() -> Dict[str, str]:
     if boto3 is None:

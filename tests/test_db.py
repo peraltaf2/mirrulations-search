@@ -561,3 +561,205 @@ def test_get_opensearch_connection(monkeypatch):
     assert captured["hosts"] == [{"host": "localhost", "port": 9200}]
     assert captured["use_ssl"] is False
     assert captured["verify_certs"] is False
+
+# --- OpenSearch text_match_terms tests ---
+
+class _FakeOpenSearch:  # pylint: disable=too-few-public-methods
+    """Fake OpenSearch client that returns canned responses for multiple indices"""
+    def __init__(self, doc_buckets, comment_buckets):
+        self.doc_buckets = doc_buckets
+        self.comment_buckets = comment_buckets
+        self.searches = []
+
+    def search(self, index, body):
+        self.searches.append((index, body))
+
+        if index == "documents":
+            return {
+                "aggregations": {
+                    "by_docket": {
+                        "buckets": self.doc_buckets
+                    }
+                }
+            }
+        if index == "comments":
+            return {
+                "aggregations": {
+                    "by_docket": {
+                        "buckets": self.comment_buckets
+                    }
+                }
+            }
+        return {"aggregations": {"by_docket": {"buckets": []}}}
+
+
+def test_text_match_terms_with_fake_opensearch():
+    """Test text_match_terms searches both indices and combines results"""
+    doc_buckets = [
+        {"key": "DEA-2024-0059", "doc_count": 3},
+        {"key": "CMS-2025-0240", "doc_count": 2}
+    ]
+    comment_buckets = [
+        {"key": "DEA-2024-0059", "doc_count": 2},
+        {"key": "CMS-2025-0240", "doc_count": 4}
+    ]
+
+    fake_client = _FakeOpenSearch(doc_buckets, comment_buckets)
+    db = DBLayer()
+
+    results = db.text_match_terms(["meaningful use"], opensearch_client=fake_client)
+
+    # Should have searched both indices
+    assert len(fake_client.searches) == 2
+    assert fake_client.searches[0][0] == "documents"
+    assert fake_client.searches[1][0] == "comments"
+
+    # Should combine results from both
+    assert len(results) == 2
+
+    dea_result = next(r for r in results if r["docket_id"] == "DEA-2024-0059")
+    assert dea_result["document_match_count"] == 3
+    assert dea_result["comment_match_count"] == 2
+
+    cms_result = next(r for r in results if r["docket_id"] == "CMS-2025-0240")
+    assert cms_result["document_match_count"] == 2
+    assert cms_result["comment_match_count"] == 4
+
+
+def test_text_match_terms_updates_query():
+    """Test that searching for 'updates' returns correct counts from dummy data"""
+    doc_buckets = [
+        {"key": "CMS-2025-0240", "doc_count": 2}
+    ]
+    comment_buckets = [
+        {"key": "CMS-2025-0240", "doc_count": 1}
+    ]
+
+    fake_client = _FakeOpenSearch(doc_buckets, comment_buckets)
+    db = DBLayer()
+
+    results = db.text_match_terms(["updates"], opensearch_client=fake_client)
+
+    assert len(results) == 1
+    assert results[0]["docket_id"] == "CMS-2025-0240"
+    assert results[0]["document_match_count"] == 2
+    assert results[0]["comment_match_count"] == 1
+
+
+def test_text_match_terms_meaningful_use_query():
+    """Test that searching for 'meaningful use' returns correct counts"""
+    doc_buckets = [
+        {"key": "DEA-2024-0059", "doc_count": 3}
+    ]
+    comment_buckets = [
+        {"key": "DEA-2024-0059", "doc_count": 2}
+    ]
+
+    fake_client = _FakeOpenSearch(doc_buckets, comment_buckets)
+    db = DBLayer()
+
+    results = db.text_match_terms(["meaningful use"], opensearch_client=fake_client)
+
+    assert len(results) == 1
+    assert results[0]["docket_id"] == "DEA-2024-0059"
+    assert results[0]["document_match_count"] == 3
+    assert results[0]["comment_match_count"] == 2
+
+
+def _assert_documents_query(searches, terms):
+    doc_index, doc_body = searches[0]
+    assert doc_index == "documents"
+    assert doc_body["size"] == 0
+    should_clauses = doc_body["query"]["bool"]["should"]
+    assert len(should_clauses) == len(terms)
+    for clause, term in zip(should_clauses, terms):
+        assert "multi_match" in clause
+        assert clause["multi_match"]["query"] == term
+        assert set(clause["multi_match"]["fields"]) == {"title", "comment"}
+    assert doc_body["aggs"]["by_docket"]["terms"]["field"] == "docketId.keyword"
+
+
+def _assert_comments_query(searches, terms):
+    comment_index, comment_body = searches[1]
+    assert comment_index == "comments"
+    assert comment_body["size"] == 0
+    should_clauses = comment_body["query"]["bool"]["should"]
+    assert len(should_clauses) == len(terms)
+    for clause, term in zip(should_clauses, terms):
+        assert "match_phrase" in clause
+        assert clause["match_phrase"]["commentText"] == term
+    assert comment_body["aggs"]["by_docket"]["terms"]["field"] == "docketId.keyword"
+
+
+def test_text_match_terms_builds_correct_queries():
+    """Verify the OpenSearch queries are structured correctly for both indices"""
+    fake_client = _FakeOpenSearch([], [])
+    db = DBLayer()
+    terms = ["medicare", "medicaid"]
+
+    db.text_match_terms(terms, opensearch_client=fake_client)
+
+    assert len(fake_client.searches) == 2
+    _assert_documents_query(fake_client.searches, terms)
+    _assert_comments_query(fake_client.searches, terms)
+
+
+def test_text_match_terms_returns_correct_structure():
+    """Verify each result has the required fields"""
+    doc_buckets = [{"key": "TEST-001", "doc_count": 1}]
+    comment_buckets = [{"key": "TEST-001", "doc_count": 0}]
+
+    fake_client = _FakeOpenSearch(doc_buckets, comment_buckets)
+    db = DBLayer()
+
+    results = db.text_match_terms(["test"], opensearch_client=fake_client)
+
+    assert len(results) == 1
+    assert "docket_id" in results[0]
+    assert "document_match_count" in results[0]
+    assert "comment_match_count" in results[0]
+    assert isinstance(results[0]["docket_id"], str)
+    assert isinstance(results[0]["document_match_count"], int)
+    assert isinstance(results[0]["comment_match_count"], int)
+
+
+def test_text_match_terms_handles_empty_results():
+    """When OpenSearch returns no buckets, return empty list"""
+    fake_client = _FakeOpenSearch([], [])
+    db = DBLayer()
+
+    results = db.text_match_terms(["nonexistent"], opensearch_client=fake_client)
+
+    assert not results
+
+
+def test_text_match_terms_docket_only_in_documents():
+    """When a docket only has matching documents (no matching comments)"""
+    doc_buckets = [{"key": "DOC-ONLY", "doc_count": 5}]
+    comment_buckets = []
+
+    fake_client = _FakeOpenSearch(doc_buckets, comment_buckets)
+    db = DBLayer()
+
+    results = db.text_match_terms(["test"], opensearch_client=fake_client)
+
+    assert len(results) == 1
+    assert results[0]["docket_id"] == "DOC-ONLY"
+    assert results[0]["document_match_count"] == 5
+    assert results[0]["comment_match_count"] == 0
+
+
+def test_text_match_terms_docket_only_in_comments():
+    """When a docket only has matching comments (no matching documents)"""
+    doc_buckets = []
+    comment_buckets = [{"key": "COMMENT-ONLY", "doc_count": 10}]
+
+    fake_client = _FakeOpenSearch(doc_buckets, comment_buckets)
+    db = DBLayer()
+
+    results = db.text_match_terms(["test"], opensearch_client=fake_client)
+
+    assert len(results) == 1
+    assert results[0]["docket_id"] == "COMMENT-ONLY"
+    assert results[0]["document_match_count"] == 0
+    assert results[0]["comment_match_count"] == 10

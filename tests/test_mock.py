@@ -193,3 +193,80 @@ def test_search_cfr_part_filter_no_match(db):
     """cfr_part_param returns empty when no match"""
     result = db.search("", cfr_part_param=[{"title": "Title 99", "part": "999"}])
     assert result == []
+
+
+# --- OpenSearch text_match_terms tests ---
+
+def test_text_match_terms_returns_list(db):
+    """Search term returns a list of results"""
+    result = db.text_match_terms(["medicare"])
+    assert isinstance(result, list)
+
+
+def test_text_match_terms_structure(db):
+    """Results contain correct structure"""
+    result = db.text_match_terms(["medicare"])
+    for item in result:
+        assert set(item.keys()) == {
+            "docket_id",
+            "document_match_count",
+            "comment_match_count"
+        }
+        assert isinstance(item["docket_id"], str)
+        assert isinstance(item["document_match_count"], int)
+        assert isinstance(item["comment_match_count"], int)
+
+
+def test_text_match_terms_finds_meaningful_use(db):
+    """Find DEA docket for 'meaningful use' (phrase match)"""
+    result = db.text_match_terms(["meaningful use"])
+
+    assert len(result) == 1
+    r = result[0]
+
+    assert r["docket_id"] == "DEA-2024-0059"
+    assert r["document_match_count"] == 3
+    assert r["comment_match_count"] == 2
+
+
+def test_text_match_terms_finds_medicare(db):
+    """Find CMS docket for 'medicare'"""
+    result = db.text_match_terms(["medicare"])
+
+    assert len(result) == 1
+    r = result[0]
+
+    assert r["docket_id"] == "CMS-2025-0240"
+    assert r["document_match_count"] == 2
+    assert r["comment_match_count"] == 4
+
+
+def test_text_match_terms_finds_updates(db):
+    """Find CMS docket for 'updates'"""
+    result = db.text_match_terms(["updates"])
+
+    assert len(result) == 1
+    r = result[0]
+
+    assert r["docket_id"] == "CMS-2025-0240"
+    assert r["document_match_count"] == 2
+    assert r["comment_match_count"] == 1
+
+
+def test_text_match_terms_matches_document_comment_field(db):
+    """Ensure documents are matched via 'comment' field (new behavior)"""
+    result = db.text_match_terms(["improving healthcare"])
+
+    assert len(result) == 1
+    r = result[0]
+
+    # Comes from documentId ...0003 comment field
+    assert r["docket_id"] == "DEA-2024-0059"
+    assert r["document_match_count"] == 1
+    assert r["comment_match_count"] == 0
+
+
+def test_text_match_terms_no_results(db):
+    """Returns empty list for nonexistent term"""
+    result = db.text_match_terms(["nonexistent"])
+    assert result == []
