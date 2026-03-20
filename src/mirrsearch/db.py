@@ -31,7 +31,21 @@ class DBLayer:
             -> List[Dict[str, Any]]:
         if self.conn is None:
             return []
-        return self._search_dockets_postgres(query, docket_type_param, agency, cfr_part_param)
+        return self._search_dockets(query, docket_type_param, agency, cfr_part_param)
+
+    def _get_cfr_docket_ids(self, cfr_part_param: List[Dict[str, str]]) -> set:
+        clauses = " OR ".join(
+            "(cfr_title ILIKE %s AND cfr_part ILIKE %s)"
+            for _ in cfr_part_param
+        )
+        sql = f"SELECT DISTINCT docket_id FROM federal_register_documents WHERE ({clauses})"
+        params = []
+        for c in cfr_part_param:
+            params.append(f"%{c['title']}%")
+            params.append(f"%{c['part']}%")
+        with self.conn.cursor() as cur:
+            cur.execute(sql, params)
+            return {row[0] for row in cur.fetchall()}
 
     def _search_dockets_postgres(  # pylint: disable=too-many-locals
             self, query: str, docket_type_param: str = None,
@@ -64,23 +78,115 @@ class DBLayer:
             sql += f" AND ({clauses})"
             params.extend(f"%{a}%" for a in agency)
 
+        sql += " ORDER BY d.modify_date DESC, d.docket_id, cp.title, cp.cfrPart LIMIT 50"
+
+        with self.conn.cursor() as cur:
+            cur.execute(sql, params)
+            dockets = {}
+            for row in cur.fetchall():
+                self._process_docket_row(dockets, row)
+            results = [
+                {**d, "cfr_refs": list(d["cfr_refs"].values())}
+                for d in dockets.values()
+            ]
+
         if cfr_part_param:
-            clauses = " OR ".join(
-                "(cp2.title ILIKE %s AND cp2.cfrPart ILIKE %s)"
-                for _ in cfr_part_param
-            )
-            sql += f"""
-            AND d.docket_id IN (
-                SELECT d2.docket_id
-                FROM dockets d2
-                JOIN documents doc2 ON doc2.docket_id = d2.docket_id
-                JOIN cfrparts cp2 ON cp2.document_id = doc2.document_id
-                WHERE {clauses}
-            )
-            """
-            for c in cfr_part_param:
-                params.append(f"%{c['title']}%")
-                params.append(f"%{c['part']}%")
+            cfr_docket_ids = self._get_cfr_docket_ids(cfr_part_param)
+            results = [r for r in results if r["docket_id"] in cfr_docket_ids]
+
+        return results
+
+    def _search_dockets_by_title(self, query: str) -> set:
+        """
+        Compile a list of docket ids of the dockets
+        whose title matches the search term. Returns a set of unique ids.
+        """
+        sql = "SELECT docket_id FROM dockets WHERE docket_title ILIKE %s"
+        with self.conn.cursor() as cur:
+            cur.execute(sql, [f"%{(query or '').strip().lower()}%"])
+            return {row[0] for row in cur.fetchall()}
+
+    def _search_dockets_by_cfr(self, cfr_part_param: List[Dict[str, str]]) -> set:
+        """
+        Compile a list of docket ids of the dockets whose
+        cfr parts match the filter parameters. Returns a set of unique ids.
+        """
+        if not cfr_part_param:
+            return set()
+        clauses = " OR ".join(
+            "(cfr_title ILIKE %s AND cfr_part ILIKE %s)"
+            for _ in cfr_part_param
+        )
+        sql = f"SELECT DISTINCT docket_id FROM federal_register_documents WHERE ({clauses})"
+        params = []
+        for c in cfr_part_param:
+            params.append(f"%{c['title']}%")
+            params.append(f"%{c['part']}%")
+        with self.conn.cursor() as cur:
+            cur.execute(sql, params)
+            return {row[0] for row in cur.fetchall()}
+
+    def _search_dockets_by_document_title(self, query: str) -> set:
+        """
+        Compile a list of docket ids of the dockets that hold
+        documents whose title matches the search term. (Docket title does not have
+        to match). Return a set of unique ids.
+        """
+        sql = "SELECT DISTINCT docket_id FROM documents WHERE document_title ILIKE %s"
+        with self.conn.cursor() as cur:
+            cur.execute(sql, [f"%{(query or '').strip().lower()}%"])
+            return {row[0] for row in cur.fetchall()}
+
+    def _join_results(self, title_ids: set, cfr_ids: set, doc_title_ids: set) -> set:
+        """
+        Join the 3 sets together with the union operator so that
+        there are no repeated docket ids listed.
+        """
+        return title_ids | cfr_ids | doc_title_ids
+
+    def _search_dockets(  # pylint: disable=too-many-locals
+            self, query: str, docket_type_param: str = None,
+            agency: List[str] = None,
+            cfr_part_param: List[str] = None) -> List[Dict[str, Any]]:
+        """
+        Return the list of all the unique dockets & the corresponding
+        information needed for the frontend display by joining tables & pulling out the
+        right fields for each docket.
+        """
+        title_ids = self._search_dockets_by_title(query)
+        cfr_ids = self._search_dockets_by_cfr(cfr_part_param or [])
+        doc_title_ids = self._search_dockets_by_document_title(query)
+        docket_ids = self._join_results(title_ids, cfr_ids, doc_title_ids)
+
+        if not docket_ids:
+            return []
+
+        sql = """
+            SELECT DISTINCT
+                d.docket_id,
+                d.docket_title,
+                d.agency_id,
+                d.docket_type,
+                d.modify_date,
+                cp.title,
+                cp.cfrPart,
+                l.link
+            FROM dockets d
+            JOIN documents doc ON doc.docket_id = d.docket_id
+            LEFT JOIN cfrparts cp ON cp.document_id = doc.document_id
+            LEFT JOIN links l ON l.title = cp.title AND l.cfrPart = cp.cfrPart
+            WHERE d.docket_id = ANY(%s)
+        """
+        params = [list(docket_ids)]
+
+        if docket_type_param:
+            sql += " AND d.docket_type = %s"
+            params.append(docket_type_param)
+
+        if agency:
+            clauses = " OR ".join("d.agency_id ILIKE %s" for _ in agency)
+            sql += f" AND ({clauses})"
+            params.extend(f"%{a}%" for a in agency)
 
         sql += " ORDER BY d.modify_date DESC, d.docket_id, cp.title, cp.cfrPart LIMIT 50"
 
@@ -93,6 +199,7 @@ class DBLayer:
                 {**d, "cfr_refs": list(d["cfr_refs"].values())}
                 for d in dockets.values()
             ]
+
 
     @staticmethod
     def _process_docket_row(dockets, row):

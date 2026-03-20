@@ -104,3 +104,21 @@ CREATE TABLE IF NOT EXISTS cfrparts (
     PRIMARY KEY (document_id, cfrPart),
     FOREIGN KEY (title, cfrPart) REFERENCES links(title, cfrPart)
 );
+
+-- =========================================
+-- FEDERAL REGISTER DOCUMENTS TABLE
+-- =========================================
+-- Stores federal register document information; references documents
+-- frDocNum will be null at table creation & is retrieved from federal reserve & inserted into the table at the first query
+
+CREATE TABLE IF NOT EXISTS federal_register_documents (
+    docket_id VARCHAR(50) NOT NULL,
+    document_id VARCHAR(50) NOT NULL REFERENCES documents(document_id),
+    agency_id VARCHAR(20) NOT NULL,
+    document_title TEXT,
+    document_type VARCHAR(50),
+    fr_doc_num VARCHAR(20),
+    cfr_title VARCHAR(10),
+    cfr_part VARCHAR(50),
+    PRIMARY KEY (document_id)
+);
