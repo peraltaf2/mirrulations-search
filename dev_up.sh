@@ -4,6 +4,20 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
+EXTRA_SEED_SQL_FILE=""
+FORCE_SEED=0
+
+# Optional CLI flags:
+#   --sql-opensearch-integration  Use the OpenSearch-integration Postgres fixture.
+for arg in "$@"; do
+  case "$arg" in
+    --sql-opensearch-integration)
+      EXTRA_SEED_SQL_FILE="$SCRIPT_DIR/db/sample-data-opensearch-integration.sql"
+      FORCE_SEED=1
+      ;;
+  esac
+done
+
 # Install Postgres if missing (Mac/Homebrew)
 if ! command -v psql &>/dev/null && command -v brew &>/dev/null; then
     echo "Installing PostgreSQL via Homebrew..."
@@ -13,8 +27,12 @@ fi
 
 # Setup Postgres DB if not already initialized
 brew services start postgresql 2>/dev/null || true
-if ! psql -lqt postgres 2>/dev/null | grep -qw mirrulations; then
-    ./db/setup_postgres.sh
+if [[ "$FORCE_SEED" == "1" ]]; then
+    EXTRA_SEED_SQL_FILE="$EXTRA_SEED_SQL_FILE" ./db/setup_postgres.sh
+else
+    if ! psql -lqt postgres 2>/dev/null | grep -qw mirrulations; then
+        ./db/setup_postgres.sh
+    fi
 fi
 
 # Build the React frontend
