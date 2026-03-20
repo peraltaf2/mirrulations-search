@@ -31,21 +31,7 @@ class DBLayer:
             -> List[Dict[str, Any]]:
         if self.conn is None:
             return []
-        return self._search_dockets(query, docket_type_param, agency, cfr_part_param)
-
-    def _get_cfr_docket_ids(self, cfr_part_param: List[Dict[str, str]]) -> set:
-        clauses = " OR ".join(
-            "(cfr_title ILIKE %s AND cfr_part ILIKE %s)"
-            for _ in cfr_part_param
-        )
-        sql = f"SELECT DISTINCT docket_id FROM federal_register_documents WHERE ({clauses})"
-        params = []
-        for c in cfr_part_param:
-            params.append(f"%{c['title']}%")
-            params.append(f"%{c['part']}%")
-        with self.conn.cursor() as cur:
-            cur.execute(sql, params)
-            return {row[0] for row in cur.fetchall()}
+        return self._search_dockets_postgres(query, docket_type_param, agency, cfr_part_param)
 
     def _search_dockets_postgres(  # pylint: disable=too-many-locals
             self, query: str, docket_type_param: str = None,
@@ -78,115 +64,10 @@ class DBLayer:
             sql += f" AND ({clauses})"
             params.extend(f"%{a}%" for a in agency)
 
-        sql += " ORDER BY d.modify_date DESC, d.docket_id, cp.title, cp.cfrPart LIMIT 50"
-
-        with self.conn.cursor() as cur:
-            cur.execute(sql, params)
-            dockets = {}
-            for row in cur.fetchall():
-                self._process_docket_row(dockets, row)
-            results = [
-                {**d, "cfr_refs": list(d["cfr_refs"].values())}
-                for d in dockets.values()
-            ]
-
         if cfr_part_param:
-            cfr_docket_ids = self._get_cfr_docket_ids(cfr_part_param)
-            results = [r for r in results if r["docket_id"] in cfr_docket_ids]
-
-        return results
-
-    def _search_dockets_by_title(self, query: str) -> set:
-        """
-        Compile a list of docket ids of the dockets
-        whose title matches the search term. Returns a set of unique ids.
-        """
-        sql = "SELECT docket_id FROM dockets WHERE docket_title ILIKE %s"
-        with self.conn.cursor() as cur:
-            cur.execute(sql, [f"%{(query or '').strip().lower()}%"])
-            return {row[0] for row in cur.fetchall()}
-
-    def _search_dockets_by_cfr(self, cfr_part_param: List[Dict[str, str]]) -> set:
-        """
-        Compile a list of docket ids of the dockets whose
-        cfr parts match the filter parameters. Returns a set of unique ids.
-        """
-        if not cfr_part_param:
-            return set()
-        clauses = " OR ".join(
-            "(cfr_title ILIKE %s AND cfr_part ILIKE %s)"
-            for _ in cfr_part_param
-        )
-        sql = f"SELECT DISTINCT docket_id FROM federal_register_documents WHERE ({clauses})"
-        params = []
-        for c in cfr_part_param:
-            params.append(f"%{c['title']}%")
-            params.append(f"%{c['part']}%")
-        with self.conn.cursor() as cur:
-            cur.execute(sql, params)
-            return {row[0] for row in cur.fetchall()}
-
-    def _search_dockets_by_document_title(self, query: str) -> set:
-        """
-        Compile a list of docket ids of the dockets that hold
-        documents whose title matches the search term. (Docket title does not have
-        to match). Return a set of unique ids.
-        """
-        sql = "SELECT DISTINCT docket_id FROM documents WHERE document_title ILIKE %s"
-        with self.conn.cursor() as cur:
-            cur.execute(sql, [f"%{(query or '').strip().lower()}%"])
-            return {row[0] for row in cur.fetchall()}
-
-    def _join_results(self, title_ids: set, cfr_ids: set, doc_title_ids: set) -> set:
-        """
-        Join the 3 sets together with the union operator so that
-        there are no repeated docket ids listed.
-        """
-        return title_ids | cfr_ids | doc_title_ids
-
-    def _search_dockets(  # pylint: disable=too-many-locals
-            self, query: str, docket_type_param: str = None,
-            agency: List[str] = None,
-            cfr_part_param: List[str] = None) -> List[Dict[str, Any]]:
-        """
-        Return the list of all the unique dockets & the corresponding
-        information needed for the frontend display by joining tables & pulling out the
-        right fields for each docket.
-        """
-        title_ids = self._search_dockets_by_title(query)
-        cfr_ids = self._search_dockets_by_cfr(cfr_part_param or [])
-        doc_title_ids = self._search_dockets_by_document_title(query)
-        docket_ids = self._join_results(title_ids, cfr_ids, doc_title_ids)
-
-        if not docket_ids:
-            return []
-
-        sql = """
-            SELECT DISTINCT
-                d.docket_id,
-                d.docket_title,
-                d.agency_id,
-                d.docket_type,
-                d.modify_date,
-                cp.title,
-                cp.cfrPart,
-                l.link
-            FROM dockets d
-            JOIN documents doc ON doc.docket_id = d.docket_id
-            LEFT JOIN cfrparts cp ON cp.document_id = doc.document_id
-            LEFT JOIN links l ON l.title = cp.title AND l.cfrPart = cp.cfrPart
-            WHERE d.docket_id = ANY(%s)
-        """
-        params = [list(docket_ids)]
-
-        if docket_type_param:
-            sql += " AND d.docket_type = %s"
-            params.append(docket_type_param)
-
-        if agency:
-            clauses = " OR ".join("d.agency_id ILIKE %s" for _ in agency)
+            clauses = " OR ".join("cp.cfrPart ILIKE %s" for _ in cfr_part_param)
             sql += f" AND ({clauses})"
-            params.extend(f"%{a}%" for a in agency)
+            params.extend(f"%{c}%" for c in cfr_part_param)
 
         sql += " ORDER BY d.modify_date DESC, d.docket_id, cp.title, cp.cfrPart LIMIT 50"
 
@@ -199,7 +80,6 @@ class DBLayer:
                 {**d, "cfr_refs": list(d["cfr_refs"].values())}
                 for d in dockets.values()
             ]
-
 
     @staticmethod
     def _process_docket_row(dockets, row):
@@ -221,6 +101,36 @@ class DBLayer:
                     "cfrParts": {}
                 }
             dockets[docket_id]["cfr_refs"][title]["cfrParts"][cfr_part] = link
+
+    def get_dockets_by_ids(self, docket_ids: List[str]) -> List[Dict[str, Any]]:
+        if self.conn is None or not docket_ids:
+            return []
+        sql = """
+            SELECT DISTINCT
+                d.docket_id,
+                d.docket_title,
+                d.agency_id,
+                d.docket_type,
+                d.modify_date,
+                cp.title,
+                cp.cfrPart,
+                l.link
+            FROM dockets d
+            JOIN documents doc ON doc.docket_id = d.docket_id
+            LEFT JOIN cfrparts cp ON cp.document_id = doc.document_id
+            LEFT JOIN links l ON l.title = cp.title AND l.cfrPart = cp.cfrPart
+            WHERE d.docket_id = ANY(%s)
+            ORDER BY d.modify_date DESC, d.docket_id, cp.title, cp.cfrPart
+        """
+        with self.conn.cursor() as cur:
+            cur.execute(sql, (list(docket_ids),))
+            dockets = {}
+            for row in cur.fetchall():
+                self._process_docket_row(dockets, row)
+            return [
+                {**d, "cfr_refs": list(d["cfr_refs"].values())}
+                for d in dockets.values()
+            ]
 
     def text_match_terms(  # pylint: disable=too-many-locals
         self, terms: List[str], opensearch_client=None) -> List[Dict[str, Any]]:
@@ -313,8 +223,89 @@ class DBLayer:
             return results
 
         except (KeyError, AttributeError) as e:
+            # Malformed responses are treated as "no OpenSearch hits"
             print(f"OpenSearch query failed: {e}")
             return []
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            # Includes connection/transport errors when OpenSearch is down.
+            # The caller falls back to SQL-only when we return [].
+            print(f"OpenSearch query failed (fallback to SQL): {e}")
+            return []
+
+    def get_docket_document_comment_totals(
+            self,
+            docket_ids: List[str],
+            opensearch_client=None
+    ) -> Dict[str, Dict[str, int]]:
+        """
+        Return per-docket totals for documents and comments.
+
+        Denominators are computed from OpenSearch by using match_all queries
+        filtered to the provided docket IDs.
+        """
+        if not docket_ids:
+            return {}
+
+        if opensearch_client is None:
+            opensearch_client = get_opensearch_connection()
+
+        try:
+            doc_query = {
+                "size": 0,
+                "query": {
+                    "bool": {
+                        "filter": [
+                            {"terms": {"docketId.keyword": docket_ids}}
+                        ]
+                    }
+                },
+                "aggs": {
+                    "by_docket": {
+                        "terms": {"field": "docketId.keyword", "size": len(docket_ids)}
+                    }
+                }
+            }
+
+            comment_query = {
+                "size": 0,
+                "query": {
+                    "bool": {
+                        "filter": [
+                            {"terms": {"docketId.keyword": docket_ids}}
+                        ]
+                    }
+                },
+                "aggs": {
+                    "by_docket": {
+                        "terms": {"field": "docketId.keyword", "size": len(docket_ids)}
+                    }
+                }
+            }
+
+            doc_response = opensearch_client.search(index="documents", body=doc_query)
+            comment_response = opensearch_client.search(index="comments", body=comment_query)
+
+            totals: Dict[str, Dict[str, int]] = {}
+
+            for bucket in doc_response["aggregations"]["by_docket"]["buckets"]:
+                docket_id = str(bucket["key"])
+                totals[docket_id] = {
+                    "document_total_count": bucket["doc_count"],
+                    "comment_total_count": 0
+                }
+
+            for bucket in comment_response["aggregations"]["by_docket"]["buckets"]:
+                docket_id = str(bucket["key"])
+                totals.setdefault(docket_id, {
+                    "document_total_count": 0,
+                    "comment_total_count": 0
+                })
+                totals[docket_id]["comment_total_count"] = bucket["doc_count"]
+
+            return totals
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            print(f"OpenSearch totals query failed (fallback zeros): {e}")
+            return {}
 
 
 def _get_secrets_from_aws() -> Dict[str, str]:

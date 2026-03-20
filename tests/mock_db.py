@@ -164,7 +164,10 @@ class MockDBLayer:  # pylint: disable=too-few-public-methods
             ]
         }
 
-    def text_match_terms(self, terms: List[str]) -> List[Dict[str, Any]]: # pylint: disable=too-many-locals
+    def text_match_terms(  # pylint: disable=too-many-locals,unused-argument
+            self,
+            terms: List[str],
+            opensearch_client=None) -> List[Dict[str, Any]]:
         """
         Mock version that mirrors OpenSearch behavior:
         - documents: searches title + comment
@@ -221,3 +224,40 @@ class MockDBLayer:  # pylint: disable=too-few-public-methods
             }
             for docket_id, counts in docket_counts.items()
         ]
+
+    def get_dockets_by_ids(self, docket_ids: List[str]) -> List[Dict[str, Any]]:  # pylint: disable=unused-argument
+        return []
+
+    def get_docket_document_comment_totals(
+            self,
+            docket_ids: List[str],
+            opensearch_client=None) -> Dict[str, Dict[str, int]]:
+        # Denominators derived from the same dummy OpenSearch data used by
+        # text_match_terms(), so numerator/denominator are consistent.
+        _ = opensearch_client
+        data = self._opensearch_items()
+
+        totals: Dict[str, Dict[str, int]] = {}
+        docket_ids_str = {str(d) for d in docket_ids}
+
+        for doc in data["documents"]:
+            did = str(doc["docketId"])
+            if did not in docket_ids_str:
+                continue
+            totals.setdefault(did, {
+                "document_total_count": 0,
+                "comment_total_count": 0,
+            })
+            totals[did]["document_total_count"] += 1
+
+        for comment in data["comments"]:
+            did = str(comment["docketId"])
+            if did not in docket_ids_str:
+                continue
+            totals.setdefault(did, {
+                "document_total_count": 0,
+                "comment_total_count": 0,
+            })
+            totals[did]["comment_total_count"] += 1
+
+        return totals
