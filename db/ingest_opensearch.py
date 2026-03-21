@@ -16,22 +16,15 @@ def ingest_opensearch():
     )
     
     # Delete and recreate documents index
-    if client.indices.exists(index="documents"):
-        client.indices.delete(index="documents")
+    if client.indices.exists(index="documents_text"):
+        client.indices.delete(index="documents_text")
     
+    # Create with proper mapping
     client.indices.create(
-        index="documents",
+        index="documents_text",
         body={
             "mappings": {
                 "properties": {
-                    "agencyId": {
-                        "type": "text",
-                        "fields": {"keyword": {"type": "keyword", "ignore_above": 256}}
-                    },
-                    "comment": {
-                        "type": "text",
-                        "fields": {"keyword": {"type": "keyword", "ignore_above": 256}}
-                    },
                     "docketId": {
                         "type": "text",
                         "fields": {"keyword": {"type": "keyword", "ignore_above": 256}}
@@ -40,21 +33,8 @@ def ingest_opensearch():
                         "type": "text",
                         "fields": {"keyword": {"type": "keyword", "ignore_above": 256}}
                     },
-                    "documentType": {
-                        "type": "text",
-                        "fields": {"keyword": {"type": "keyword", "ignore_above": 256}}
-                    },
-                    "modifyDate": {
-                        "type": "text",
-                        "fields": {"keyword": {"type": "keyword", "ignore_above": 256}}
-                    },
-                    "postedDate": {
-                        "type": "text",
-                        "fields": {"keyword": {"type": "keyword", "ignore_above": 256}}
-                    },
-                    "title": {
-                        "type": "text",
-                        "fields": {"keyword": {"type": "keyword", "ignore_above": 256}}
+                    "documentText": {
+                        "type": "text"
                     }
                 }
             }
@@ -124,104 +104,9 @@ def ingest_opensearch():
     # Insert documents
     documents = [
         {
-            "agencyId": "DEA",
-            "comment": None,
-            "docketId": "DEA-2024-0059",
-            "documentId": "DEA-2024-0059-0004",
-            "documentType": "Supporting & Related Material",
-            "modifyDate": "2024-05-21 13:46:37+00:00",
-            "postedDate": "2024-05-21 04:00:00+00:00",
-            "title": "2024-04-11 - AAG Fonzone - Marijuana Rescheduling"
-        },
-        {
-            "agencyId": "DEA",
-            "comment": None,
-            "docketId": "DEA-2024-0059",
-            "documentId": "DEA-2024-0059-0005",
-            "documentType": "Supporting & Related Material",
-            "modifyDate": "2024-05-21 13:55:07+00:00",
-            "postedDate": "2024-05-21 04:00:00+00:00",
-            "title": "2016-17960-DEA-427"
-        },
-        {
-            "agencyId": "DEA",
-            "comment": None,
-            "docketId": "DEA-2024-0059",
-            "documentId": "DEA-2024-0059-0001",
-            "documentType": "Proposed Rule",
-            "modifyDate": "2024-12-21 02:00:50+00:00",
-            "postedDate": "2024-05-21 04:00:00+00:00",
-            "title": "Schedules of Controlled Substances: Rescheduling of Marijuana"
-        },
-        {
-            "agencyId": "DEA",
-            "comment": None,
-            "docketId": "DEA-2024-0059",
-            "documentId": "DEA-2024-0059-0007",
-            "documentType": "Supporting & Related Material",
-            "modifyDate": "2024-05-21 13:55:44+00:00",
-            "postedDate": "2024-05-21 04:00:00+00:00",
-            "title": "2016-17954-DEA-426"
-        },
-        {
-            "agencyId": "DEA",
-            "comment": None,
-            "docketId": "DEA-2024-0059",
-            "documentId": "DEA-2024-0059-42928",
-            "documentType": "Proposed Rule",
-            "modifyDate": "2024-09-03 22:48:28+00:00",
-            "postedDate": "2024-08-29 04:00:00+00:00",
-            "title": "Schedules of Controlled Substances: Rescheduling of Marijuana"
-        },
-        {
-            "agencyId": "CMS",
-            "comment": None,
-            "docketId": "CMS-2025-0240",
-            "documentId": "CMS-2025-0240-0214",
-            "documentType": "Rule",
-            "modifyDate": "2025-11-24 21:44:12+00:00",
-            "postedDate": "2025-11-24 05:00:00+00:00",
-            "title": "Medicare Program: End-Stage Renal Disease Prospective Payment System, Payment for Renal Dialysis Services Furnished to Individuals with Acute Kidney Injury, End-Stage Renal Disease Quality Incentive Program, and End-Stage Renal Disease Treatment Choices Model"
-        },
-        {
-            "agencyId": "CMS",
-            "comment": None,
-            "docketId": "CMS-2025-0240",
-            "documentId": "CMS-2025-0240-0002",
-            "documentType": "Proposed Rule",
-            "modifyDate": "2025-08-31 09:00:09+00:00",
-            "postedDate": "2025-07-02 04:00:00+00:00",
-            "title": "Medicare Program: End-Stage Renal Disease Prospective Payment System, Payment for Renal Dialysis Services Furnished to Individuals with Acute Kidney Injury, End-Stage Renal Disease Quality Incentive Program, and End-Stage Renal Disease Treatment Choices Model"
-        },
-        {
-            "agencyId": "CMS",
-            "comment": None,
-            "docketId": "CMS-2025-0240",
-            "documentId": "CMS-2025-0240-0001",
-            "documentType": "Proposed Rule",
-            "modifyDate": "2025-07-02 16:46:00+00:00",
-            "postedDate": "2025-06-30 04:00:00+00:00",
-            "title": "CY 2026 Changes to the End-Stage Renal Disease (ESRD) Prospective Payment System and Quality Incentive Program. CMS1830-P Display"
-        },
-        {
-            "agencyId": "CMS",
-            "comment": None,
-            "docketId": "CMS-2019-0100",
-            "documentId": "CMS-2019-0100-0001",
-            "documentType": "Proposed Rule",
-            "modifyDate": "2019-08-28 01:06:05+00:00",
-            "postedDate": "2019-07-11 04:00:00+00:00",
-            "title": "CY 2020 Home Health Prospective Payment System Rate Update; Value-Based Purchasing Model; Quality Reporting Requirements CMS-1711-P"
-        },
-        {
-            "agencyId": "CMS",
-            "comment": None,
-            "docketId": "CMS-2019-0100",
-            "documentId": "CMS-2019-0100-0559",
-            "documentType": "Rule",
-            "modifyDate": "2019-11-08 17:42:19+00:00",
-            "postedDate": "2019-10-31 04:00:00+00:00",
-            "title": "CY 2020 Home Health Prospective Payment System Rate Update; Value-Based Purchasing Model; Quality Reporting Requirements CMS-1711-FC"
+            "docketId": "CMS-2025-0001",
+            "documentId": "CMS-2025-0001-0001",
+            "document_text": "[Federal Register Volume 90, Number 2 (Friday, January 3, 2025)] [Notices] [Pages 321-322] From the Federal Register Online via the Government Publishing Office [www.gpo.gov] [FR Doc No: 2024-31567] ----------------------------------------------------------------------- DEPARTMENT OF HEALTH AND HUMAN SERVICES Centers for Medicare & Medicaid Services [Document Identifiers: CMS-10565 and CMS-1763] Agency Information Collection Activities: Proposed Collection; Comment Request AGENCY: Centers for Medicare & Medicaid Services, Health and Human Services (HHS). ACTION: Notice. ----------------------------------------------------------------------- SUMMARY: The Centers for Medicare & Medicaid Services (CMS) is announcing an opportunity for the public to comment on CMS' intention to collect information from the public. Under the Paperwork Reduction Act of 1995 (PRA), Federal agencies are required to publish notice in the Federal Register concerning each proposed collection of information (including each proposed extension or reinstatement of an existing collection of information) and to allow 60 days for public comment on the proposed action. Interested persons are invited to send comments regarding our burden estimates or any other aspect of this collection of information, including the necessity and utility of the proposed information collection for the proper performance of the agency's functions, the accuracy of the estimated burden, ways to enhance the quality, utility, and clarity of the information to be collected, and the use of automated collection techniques or other forms of information technology to minimize the information collection burden. DATES: Comments must be received by March 4, 2025. ADDRESSES: When commenting, please reference the document identifier or OMB control number. To be assured consideration, comments and recommendations must be submitted in any one of the following ways: 1. Electronically. You may send your comments electronically to http://www.regulations.gov. Follow the instructions for ``Comment or Submission'' or ``More Search Options'' to find the information collection document(s) that are accepting comments. 2. By regular mail. You may mail written comments to the following address: CMS, Office of Strategic Operations and Regulatory Affairs, Division of Regulations Development, Attention: Document Identifier/OMB Control Number: __, Room C4-26-05, 7500 Security Boulevard, Baltimore, Maryland 21244-1850. To obtain copies of a supporting statement and any related forms for the proposed collection(s) summarized in this notice, please access the CMS PRA website by copying and pasting the following web address into your web browser: https://www.cms.gov/Regulations-and-Guidance/Legislation/PaperworkReductionActof1995/PRA-Listing. FOR FURTHER INFORMATION CONTACT: William N. Parham at (410) 786-4669. SUPPLEMENTARY INFORMATION: Contents This notice sets out a summary of the use and burden associated with the following information collections. More detailed information can be found in each collection's supporting statement and associated materials (see ADDRESSES). CMS-10565 Medicare Advantage Model of Care Submission Requirements CMS-1763 Request for Termination of Medicare Premium Part A, Part B, or Part B Immunosuppressive Drug Coverage (Part B-ID) and Supporting Statute and Regulations Under the PRA (44 U.S.C. 3501-3520), Federal agencies must obtain approval from the Office of Management and Budget (OMB) for each collection of information they conduct or sponsor. The term ``collection of information'' is defined in 44 U.S.C. 3502(3) and 5 CFR 1320.3(c) and includes agency requests or requirements that members of the public submit reports, keep records, or provide information to a third party. Section 3506(c)(2)(A) of the PRA requires Federal agencies to publish a 60-day notice in the Federal Register concerning each proposed collection of information, including each proposed extension or reinstatement of an existing collection of information, before submitting the collection to OMB for approval. To comply with this requirement, CMS is publishing this notice. Information Collections 1. Type of Information Collection Request: Revision of a currently approved collection; Title of Information Collection: Medicare Advantage Model of Care Submission Requirements; Use: Section 1859(f)(7) of the Act and 42 CFR 422.101(f)(3) requires that all SNP MOCs be approved by NCQA. This approval is based on NCQA's evaluation of SNPs' MOC narratives using MOC scoring guidelines. Section 50311 of the BBA of 2018 modified the MOC requirements for C-SNPs in section 1859 (f)(5)(B)(i-v) of the Act, requiring them to submit on an annual basis. The BBA mandated additional changes for C-SNPs related to care management, HRAs, individualized care plans, a minimum benchmark for scoring, etc., for which CMS has applied these requirements to all SNP types. SNPs will submit initial and renewal MOCs as well as summaries of any substantive off-cycle MOC changes to CMS through HPMS. This is the platform that CMS uses to coordinate communication and the collection of information from MAOs. NCQA and CMS will use information collected in the SNP Application HPMS module to review and approve MOC narratives in order for an MAO to offer a new SNP in the upcoming calendar year(s). This information is used by CMS as part of the MA SNP application process. NCQA and CMS will use information collected in the Renewal Submission section of the HPMS MOC module to review and approve the MOC narrative for the SNP to receive a new approval period and operate in the upcoming calendar year(s). Form Number: CMS-10565 (OMB control number 0938-1296); Frequency: Occasionally; Affected Public: Private Sector, Business or other for-profits; Number of Respondents: 2,088; Total Annual Responses: 2,088; Total Annual Hours: 8,638. (For policy questions regarding this collection contact Daniel Lehman at 410-786-8929.) 2. Type of Information Collection Request: Revision of a currently approved collection; Title of Information Collection: Request for Termination of Medicare Premium Part A, Part B, or Part B Immunosuppressive Drug Coverage (Part B-ID) and Supporting Statute and Regulations; Use: Sections 1818(c)(5), 1818A(c)(2)(B) and 1838(b)(1) of the Act and corresponding regulations at 42 CFR 406.28(a) and 407.27(c) require that a Medicare enrollee wishing to voluntarily terminate Part B or premium Part A coverage file a written request with CMS or SSA. Pursuant to 1838(h) of the Act and the corresponding regulation at 42 CFR 407.62(a), individuals wishing to terminate their Part B-ID coverage must notify SSA. The statute and regulations also specify when coverage ends based upon the date the request for termination is filed. The CMS-1763 is the form used by individuals who wish to terminate their Medicare Part A, Part B or Part B-ID. This 2024 iteration is a revision that does not propose any program changes. Per the Office of Communication's plain language suggestion, the title has been updated to ``Request for Termination of Medicare Premium Part A, Part B, or Part B Immunosuppressive Drug Coverage (Part B-ID).'' The 2024 submission saw an increase in the burden due to utilization of the form and improvement in the accuracy of the data exchanges between CMS and SSA. Updated wage information for a Federal Government employee is also responsible for part of the increase. Form Number: CMS-1763 (OMB control number 0938-0025); Frequency: Biennially; Affected Public: Private Sector--State, Local, or Tribal Governments; and Federal Government; Number of Respondents: 197,518; Total Annual Responses: 197,518; Total Annual Hours: 33,578. (For policy questions regarding this collection contact Tyrissa Woods at 410-786-0286.) William N. Parham, III, Director, Division of Information Collections and Regulatory Impacts, Office of Strategic Operations and Regulatory Affairs. [FR Doc. 2024-31567 Filed 1-2-25; 8:45 am] BILLING CODE 4120-01-P"
         }
     ]
     
@@ -349,7 +234,7 @@ def ingest_opensearch():
         client.index(index="comments_extracted_text", id=i, body=extracted)
     
     # Refresh indices
-    client.indices.refresh(index="documents")
+    client.indices.refresh(index="documents_text")
     client.indices.refresh(index="comments")
     client.indices.refresh(index="comments_extracted_text")
     
@@ -357,9 +242,10 @@ def ingest_opensearch():
     print(f"✓ Ingested {len(comments)} comments")
     print(f"✓ Ingested {len(extracted_texts)} comments (extracted text from attachments)")
     print("\nDockets included:")
-    print("  DEA-2024-0059: 5 docs, 2 comments total")
-    print("  CMS-2025-0240: 3 docs, 6 comments total")
-    print("  CMS-2019-0100: 2 docs, 10 comments total")
+    print("  DEA-2024-0059: 0 docs, 2 comments total")
+    print("  CMS-2025-0240: 0 docs, 6 comments total")
+    print("  CMS-2019-0100: 0 docs, 10 comments total")
+    print("  CMS-2025-0001: 1 doc, 0 comments total")
 
 
 if __name__ == "__main__":
