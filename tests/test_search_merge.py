@@ -41,10 +41,10 @@ def test_merge_opensearch_empty_uses_sql_only_with_match_source():
     out = logic.search("q", page=1, page_size=10)
     assert len(out["results"]) == 1
     assert out["results"][0]["match_source"] == "title"
-    assert out["results"][0]["document_match_count"] == 0
-    assert out["results"][0]["comment_match_count"] == 0
-    assert out["results"][0]["document_total_count"] == 10
-    assert out["results"][0]["comment_total_count"] == 2
+    assert out["results"][0]["documentNumerator"] == 0
+    assert out["results"][0]["commentNumerator"] == 0
+    assert out["results"][0]["documentDenominator"] == 10
+    assert out["results"][0]["commentDenominator"] == 2
     assert db.get_dockets_by_ids_calls == []
 
 
@@ -65,18 +65,18 @@ def test_merge_appends_full_text_with_counts_and_order():
     merged = out["results"]
     assert [r["docket_id"] for r in merged] == ["A", "B", "C"]
     assert merged[0]["match_source"] == "title"
-    assert merged[0]["document_match_count"] == 9
-    assert merged[0]["comment_match_count"] == 1
-    assert merged[0]["document_total_count"] == 10
-    assert merged[0]["comment_total_count"] == 2
+    assert merged[0]["documentNumerator"] == 9
+    assert merged[0]["commentNumerator"] == 1
+    assert merged[0]["documentDenominator"] == 10
+    assert merged[0]["commentDenominator"] == 2
     assert merged[1]["match_source"] == "full_text"
-    assert merged[1]["document_match_count"] == 2
-    assert merged[1]["comment_match_count"] == 3
-    assert merged[1]["document_total_count"] == 4
-    assert merged[1]["comment_total_count"] == 5
+    assert merged[1]["documentNumerator"] == 2
+    assert merged[1]["commentNumerator"] == 3
+    assert merged[1]["documentDenominator"] == 4
+    assert merged[1]["commentDenominator"] == 5
     assert merged[2]["match_source"] == "full_text"
-    assert merged[2]["document_match_count"] == 1
-    assert merged[2]["document_total_count"] == 7
+    assert merged[2]["documentNumerator"] == 1
+    assert merged[2]["documentDenominator"] == 7
     assert db.get_dockets_by_ids_calls == [["B", "C"]]
 
 
@@ -88,10 +88,10 @@ def test_merge_skips_os_docket_missing_in_postgres():
     out = logic.search("q", page=1, page_size=10)
     assert len(out["results"]) == 1
     assert out["results"][0]["docket_id"] == "A"
-    assert out["results"][0]["document_match_count"] == 0
-    assert out["results"][0]["comment_match_count"] == 0
-    assert out["results"][0]["document_total_count"] == 10
-    assert out["results"][0]["comment_total_count"] == 2
+    assert out["results"][0]["documentNumerator"] == 0
+    assert out["results"][0]["commentNumerator"] == 0
+    assert out["results"][0]["documentDenominator"] == 10
+    assert out["results"][0]["commentDenominator"] == 2
 
 
 def test_row_docket_key_accepts_id_for_mocks():
@@ -103,10 +103,10 @@ def test_row_docket_key_accepts_id_for_mocks():
     logic = InternalLogic("x", db_layer=db)
     out = logic.search("q", page=1, page_size=2)
     assert out["results"][0]["match_source"] == "title"
-    assert out["results"][0]["document_match_count"] == 0
-    assert out["results"][0]["comment_match_count"] == 0
-    assert out["results"][0]["document_total_count"] == 0
-    assert out["results"][0]["comment_total_count"] == 0
+    assert out["results"][0]["documentNumerator"] == 0
+    assert out["results"][0]["commentNumerator"] == 0
+    assert out["results"][0]["documentDenominator"] == 0
+    assert out["results"][0]["commentDenominator"] == 0
 
 
 def test_merge_os_hits_all_title_matches_falls_back_to_title_only():
@@ -118,8 +118,8 @@ def test_merge_os_hits_all_title_matches_falls_back_to_title_only():
     out = logic.search("q", page=1, page_size=10)
     assert len(out["results"]) == 1
     assert out["results"][0]["match_source"] == "title"
-    assert out["results"][0]["document_match_count"] == 9
-    assert out["results"][0]["comment_match_count"] == 1
-    assert out["results"][0]["document_total_count"] == 10
-    assert out["results"][0]["comment_total_count"] == 2
+    assert out["results"][0]["documentNumerator"] == 9
+    assert out["results"][0]["commentNumerator"] == 1
+    assert out["results"][0]["documentDenominator"] == 10
+    assert out["results"][0]["commentDenominator"] == 2
     assert db.get_dockets_by_ids_calls == []

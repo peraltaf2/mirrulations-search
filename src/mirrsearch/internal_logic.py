@@ -127,6 +127,18 @@ class InternalLogic:  # pylint: disable=too-few-public-methods
                     for part, link in ref.get("cfrParts", {}).items()
                 ]
 
+        # Rename internal keys to user-facing numerator/denominator names
+        key_map = {
+            "document_match_count": "documentNumerator",
+            "comment_match_count": "commentNumerator",
+            "document_total_count": "documentDenominator",
+            "comment_total_count": "commentDenominator",
+        }
+        for result in page_results:
+            for old, new in key_map.items():
+                if old in result:
+                    result[new] = result.pop(old)
+
         return {
             "results": page_results,
             "pagination": {
