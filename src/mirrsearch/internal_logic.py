@@ -20,6 +20,51 @@ def _row_docket_key(row):
     return str(row["id"])
 
 
+def _cfr_part_patterns_match_row(row, patterns):
+    """True if any pattern matches any cfrPart value (Postgres: cp.cfrPart ILIKE %pattern%)."""
+    if not patterns:
+        return True
+    cfr_refs = row.get("cfr_refs") or []
+    for ref in cfr_refs:
+        for part_key in (ref.get("cfrParts") or {}).keys():
+            pk_l = str(part_key).lower()
+            if any(pat in pk_l for pat in patterns):
+                return True
+    return False
+
+
+def _cfr_filter_to_part_patterns(cfr_part_param):
+    """Normalize API/DB CFR filter to lowercase substrings (ILIKE %% semantics on cfrPart)."""
+    patterns = []
+    for spec in cfr_part_param or []:
+        if isinstance(spec, dict):
+            part = spec.get("part")
+            if part is not None and str(part).strip():
+                patterns.append(str(part).strip().lower())
+        elif spec is not None and str(spec).strip():
+            patterns.append(str(spec).strip().lower())
+    return patterns
+
+
+def _row_matches_advanced_filters(row, docket_type_param, agency, cfr_part_param):
+    """
+    Same constraints as _search_dockets_postgres for full-text rows loaded via get_dockets_by_ids.
+    Drops OpenSearch-only hits that fail advanced filters.
+    """
+    if docket_type_param:
+        if row.get("docket_type") != docket_type_param:
+            return False
+    if agency:
+        aid = (row.get("agency_id") or "").lower()
+        if not any((a or "").strip().lower() in aid for a in agency):
+            return False
+    if cfr_part_param:
+        patterns = _cfr_filter_to_part_patterns(cfr_part_param)
+        if patterns and not _cfr_part_patterns_match_row(row, patterns):
+            return False
+    return True
+
+
 class InternalLogic:  # pylint: disable=too-few-public-methods
     """Internal logic for search operations with pagination"""
 
@@ -81,6 +126,9 @@ class InternalLogic:  # pylint: disable=too-few-public-methods
             for did in new_ids_ordered:
                 row = by_id.get(did)
                 if row is None:
+                    continue
+                if not _row_matches_advanced_filters(
+                        row, docket_type_param, agency, cfr_part_param):
                     continue
                 h = os_counts_by_id.get(did, {})
                 full_text_rows.append({
