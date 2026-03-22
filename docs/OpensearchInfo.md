@@ -4,13 +4,15 @@
 
 If OpenSearch uses **HTTPS** and **basic auth** on port 9200 (typical after `install_demo_configuration.sh`), set in `.env`:
 
-- `OPENSEARCH_USE_SSL=true`
+- `OPENSEARCH_USE_SSL=true` (optional if username + password are set — HTTPS is assumed)
 - `OPENSEARCH_USER=admin`
 - `OPENSEARCH_PASSWORD=…` (same value you used for `OPENSEARCH_INITIAL_ADMIN_PASSWORD` at install), **or** set `OPENSEARCH_INITIAL_ADMIN_PASSWORD` and the app will use it as the password.
 
 Optional: `OPENSEARCH_VERIFY_CERTS=true` if you install a trusted CA (default is `false` for self-signed demo certs).
 
 `curl` must use `https://localhost:9200` with `-k` and `-u admin:…`, not plain `http://`.
+
+The Python client uses **HTTPS automatically when both username and password are set** and `OPENSEARCH_USE_SSL` is left unset (so older `.env` files without that flag still work). For rare **HTTP + basic auth**, set `OPENSEARCH_USE_SSL=false`.
 
 If `_search` returns **`index_not_found_exception`** for `documents` / `comments`, the cluster is reachable but **indices were never created** — run ingestion (e.g. `python db/ingest_opensearch.py` from the repo with the same `.env`), or restore from your production index snapshot.
 

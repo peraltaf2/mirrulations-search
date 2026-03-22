@@ -455,6 +455,47 @@ def test_get_opensearch_connection_https_and_basic_auth(monkeypatch):
     assert captured["use_ssl"] is True
     assert captured["verify_certs"] is False
     assert captured["http_auth"] == ("admin", "secret")
+    assert captured["hosts"] == [
+        {"host": "localhost", "port": 9200, "scheme": "https"},
+    ]
+    assert captured.get("ssl_assert_hostname") is False
+
+
+def test_get_opensearch_connection_ssl_implicit_when_credentials_only(monkeypatch):
+    """EC2-style .env: user+password but no OPENSEARCH_USE_SSL → HTTPS."""
+    captured = {}
+
+    def fake_opensearch(**kwargs):
+        captured.update(kwargs)
+        return "client"
+
+    monkeypatch.setattr(db_module, "OpenSearch", fake_opensearch)
+    monkeypatch.delenv("OPENSEARCH_USE_SSL", raising=False)
+    monkeypatch.setenv("OPENSEARCH_USER", "admin")
+    monkeypatch.setenv("OPENSEARCH_PASSWORD", "x")
+
+    db_module.get_opensearch_connection()
+
+    assert captured["use_ssl"] is True
+    assert captured["hosts"][0].get("scheme") == "https"
+
+
+def test_get_opensearch_connection_ssl_explicit_off_with_auth(monkeypatch):
+    captured = {}
+
+    def fake_opensearch(**kwargs):
+        captured.update(kwargs)
+        return "client"
+
+    monkeypatch.setattr(db_module, "OpenSearch", fake_opensearch)
+    monkeypatch.setenv("OPENSEARCH_USE_SSL", "false")
+    monkeypatch.setenv("OPENSEARCH_USER", "admin")
+    monkeypatch.setenv("OPENSEARCH_PASSWORD", "x")
+
+    db_module.get_opensearch_connection()
+
+    assert captured["use_ssl"] is False
+    assert "scheme" not in captured["hosts"][0]
 
 
 # --- OpenSearch text_match_terms tests ---

@@ -523,14 +523,29 @@ def get_db() -> DBLayer:
         return DBLayer()
 
 
+def _opensearch_use_ssl_from_env(user: str, password: str) -> bool:
+    """
+    Whether to use HTTPS for OpenSearch.
+
+    If ``OPENSEARCH_USE_SSL`` is unset, default to **True when both user and
+    password are set** (typical secured EC2 / demo install on :9200). Plain HTTP
+    + auth is rare; force ``OPENSEARCH_USE_SSL=false`` for that case.
+    """
+    raw = (os.getenv("OPENSEARCH_USE_SSL") or "").strip().lower()
+    if raw in {"0", "false", "no", "off"}:
+        return False
+    if _env_flag_true("OPENSEARCH_USE_SSL"):
+        return True
+    if not raw and user and password:
+        return True
+    return False
+
+
 def get_opensearch_connection() -> OpenSearch:
     if LOAD_DOTENV is not None:
         LOAD_DOTENV()
     host = (os.getenv("OPENSEARCH_HOST") or "localhost").strip() or "localhost"
     port = _parse_opensearch_port_env("OPENSEARCH_PORT", 9200)
-    # Demo / production installs often use HTTPS + basic auth on 9200.
-    use_ssl = _env_flag_true("OPENSEARCH_USE_SSL")
-    verify_certs = _env_flag_true("OPENSEARCH_VERIFY_CERTS")
     user = (os.getenv("OPENSEARCH_USER") or os.getenv("OPENSEARCH_USERNAME") or "").strip()
     password = (
         os.getenv("OPENSEARCH_PASSWORD")
@@ -538,12 +553,21 @@ def get_opensearch_connection() -> OpenSearch:
         or ""
     ).strip()
     http_auth = (user, password) if user and password else None
-    kwargs = {
-        "hosts": [{"host": host, "port": port}],
+    # Demo / production installs often use HTTPS + basic auth on 9200.
+    use_ssl = _opensearch_use_ssl_from_env(user, password)
+    verify_certs = _env_flag_true("OPENSEARCH_VERIFY_CERTS")
+    host_entry: Dict[str, Any] = {"host": host, "port": port}
+    if use_ssl:
+        host_entry["scheme"] = "https"
+    kwargs: Dict[str, Any] = {
+        "hosts": [host_entry],
         "use_ssl": use_ssl,
         "verify_certs": verify_certs if use_ssl else False,
         "ssl_show_warn": False,
     }
+    if use_ssl and not verify_certs:
+        # Self-signed demo certs; avoid hostname mismatch errors.
+        kwargs["ssl_assert_hostname"] = False
     if http_auth is not None:
         kwargs["http_auth"] = http_auth
     return OpenSearch(**kwargs)
