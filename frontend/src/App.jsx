@@ -1,4 +1,6 @@
 import { useMemo, useState,useEffect } from "react";
+import { Routes, Route, Navigate } from 'react-router-dom'
+import Login from './pages/Login'
 import "./styles/app.css";
 import { searchDockets, getAuthStatus } from "./api/searchApi";
 import AdvancedSidebar from "./components/AdvancedSidebar";
@@ -25,10 +27,12 @@ const [loading, setLoading] = useState(false);
 const [hasSearched, setHasSearched] = useState(false);
 const [unauthorized, setUnauthorized] = useState(false);
 const [user, setUser] = useState(null);
+const [authLoading, setAuthLoading] = useState(true);
 
 useEffect(() => {
   getAuthStatus().then(data => {
     if (data.logged_in) setUser({ name: data.name, email: data.email });
+    setAuthLoading(false);
   });
 }, []);
 
@@ -116,73 +120,80 @@ const clearAdvanced = () => {
   },[results])
 
 return (
-<div className="page">
-<header className="topbar">
-<div className="brand">Mirrulations</div>
-{user ? (
-  <div className="auth-section">
-    <span className="auth-name">{user.name}</span>
-    <a href="/logout" className="btn btn-primary">Log Out</a>
-  </div>
-) : (
-  <a href="/login" className="btn btn-primary">Log In</a>
+  <Routes>
+    <Route path="/login" element={<Login />} />
+    <Route path="/*" element={
+      // Used to check if the user is logged in, AND if the auth check is done loading.
+      user === null && !authLoading ? <Navigate to="/login" replace /> : (
+        <div className="page">
+          <header className="topbar">
+          <div className="brand">Mirrulations</div>
+          {user ? (
+            <div className="auth-section">
+              <span className="auth-name">{user.name}</span>
+              <a href="/logout" className="btn btn-primary">Log Out</a>
+            </div>
+          ) : (
+            <a href="/login" className="btn btn-primary">Log In</a>
+          )}
+          </header>
+          <div className="layout">
+            <AdvancedSidebar
+            advOpen={advOpen}
+            setAdvOpen={setAdvOpen}
+            yearFrom={yearFrom}
+            setYearFrom={setYearFrom}
+            yearTo={yearTo}
+            setYearTo={setYearTo}
+            agencySearch={agencySearch}
+            setAgencySearch={setAgencySearch}
+            agenciesToShow={agenciesToShow}
+            selectedAgencies={selectedAgencies}
+            setSelectedAgencies={setSelectedAgencies}
+            docType={docType}
+            setDocType={setDocType}
+            status={status}
+            setStatus={setStatus}
+            selectedCfrParts={selectedCfrParts}
+            setSelectedCfrParts={setSelectedCfrParts}
+            clearAdvanced={clearAdvanced}
+            applyAdvanced={() => runSearch(1)}
+            activeCount={activeCount}
+            />
+            <main className="main">
+              <motion.h1 className="title"
+              initial={{ opacity: 0, y: -20 }}   
+              animate={{ opacity: 1, y: 0 }}     
+              transition={{ delay: 0.8 ,duration: 0.9, ease: "easeInOut" }}
+              >Mirrulations Explorer</motion.h1>
+              <SearchBar
+              query={query}
+              setQuery={setQuery}
+              onSubmit={(e) => {
+                            e.preventDefault();
+                            runSearch(1);
+                          }}
+              />
+              <ResultsPanel
+              advancedPayload={advancedPayload}
+              results={results}
+              loading={loading}
+              hasSearched={hasSearched}
+              unauthorized={unauthorized}
+              />
+            <div className="pagination-div">
+              <button className="page-button" disabled={!pagination?.hasPrev} onClick={() => runSearch(page - 1)}><ArrowLeftIcon color="white" size={32}/></button>
+
+              <span className="page-info">
+                Page {pagination?.page} of {pagination?.totalPages}
+              </span>
+
+              <button className="page-button" disabled={!pagination?.hasNext} onClick={() => runSearch(page + 1)}><ArrowRightIcon color="white" size={32}/></button>
+            </div>
+            </main>
+          </div>
+        </div>
+      )
+    } />
+  </Routes>
 )}
-</header>
-<div className="layout">
-<AdvancedSidebar
-advOpen={advOpen}
-setAdvOpen={setAdvOpen}
-yearFrom={yearFrom}
-setYearFrom={setYearFrom}
-yearTo={yearTo}
-setYearTo={setYearTo}
-agencySearch={agencySearch}
-setAgencySearch={setAgencySearch}
-agenciesToShow={agenciesToShow}
-selectedAgencies={selectedAgencies}
-setSelectedAgencies={setSelectedAgencies}
-docType={docType}
-setDocType={setDocType}
-status={status}
-setStatus={setStatus}
-selectedCfrParts={selectedCfrParts}
-setSelectedCfrParts={setSelectedCfrParts}
-clearAdvanced={clearAdvanced}
-applyAdvanced={() => runSearch(1)}
-activeCount={activeCount}
-/>
-<main className="main">
-<motion.h1 className="title"
-initial={{ opacity: 0, y: -20 }}   
-animate={{ opacity: 1, y: 0 }}     
-transition={{ delay: 0.8 ,duration: 0.9, ease: "easeInOut" }}
->Mirrulations Explorer</motion.h1>
-<SearchBar
-query={query}
-setQuery={setQuery}
-onSubmit={(e) => {
-              e.preventDefault();
-              runSearch(1);
-            }}
-/>
-<ResultsPanel
-advancedPayload={advancedPayload}
-results={results}
-loading={loading}
-hasSearched={hasSearched}
-unauthorized={unauthorized}
-/>
-<div className="pagination-div">
-  <button className="page-button" disabled={!pagination?.hasPrev} onClick={() => runSearch(page - 1)}><ArrowLeftIcon color="white" size={32}/></button>
-
-  <span className="page-info">
-    Page {pagination?.page} of {pagination?.totalPages}
-  </span>
-
-  <button className="page-button" disabled={!pagination?.hasNext} onClick={() => runSearch(page + 1)}><ArrowRightIcon color="white" size={32}/></button>
-</div>
-</main>
-</div>
-</div>
-  );
-}
