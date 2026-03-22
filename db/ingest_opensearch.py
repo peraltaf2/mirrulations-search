@@ -12,6 +12,18 @@ _src = _ROOT / "src"
 if _src.is_dir() and str(_src) not in sys.path:
     sys.path.insert(0, str(_src))
 
+# Reload .env from disk so OpenSearch settings win over a polluted shell.
+# (``source .env`` in bash can mangle values with ``!``; default load_dotenv does
+# not override existing env vars.)
+try:
+    from dotenv import load_dotenv as _load_dotenv
+except ImportError:
+    pass
+else:
+    _env_path = _ROOT / ".env"
+    if _env_path.is_file():
+        _load_dotenv(_env_path, override=True)
+
 from mirrsearch.db import get_opensearch_connection  # pylint: disable=wrong-import-position
 
 
@@ -23,6 +35,12 @@ def ingest_opensearch():
         client.info()
     except Exception as e:  # pylint: disable=broad-exception-caught
         print(f"OpenSearch is not running (skipping ingest): {e}")
+        print(
+            "Hint: secured nodes need HTTPS. Ensure .env has OPENSEARCH_USER + "
+            "OPENSEARCH_PASSWORD (or OPENSEARCH_INITIAL_ADMIN_PASSWORD) and either "
+            "OPENSEARCH_USE_SSL=true or omit it (HTTPS is assumed when creds are set). "
+            "Quote passwords with ! in .env, e.g. OPENSEARCH_PASSWORD='your!pass'."
+        )
         return
 
     # Delete existing indexes for a clean ingest.

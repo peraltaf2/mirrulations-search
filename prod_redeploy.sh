@@ -27,9 +27,21 @@ OPENSEARCH_HOST=localhost
 OPENSEARCH_PORT=9200
 OPENSEARCH_USE_SSL=true
 OPENSEARCH_USER=admin
-OPENSEARCH_PASSWORD=M1rrulations!Search
+OPENSEARCH_PASSWORD='M1rrulations!Search'
 ENVEOF
     echo "Created .env with defaults (edit for RDS or custom credentials)"
+fi
+
+# Older checkouts: .env may exist but omit OpenSearch TLS/auth (template only runs when missing).
+if [[ -f .env ]] && ! grep -q '^OPENSEARCH_USER=' .env; then
+    cat >> .env <<'ENVEOF'
+
+# OpenSearch (HTTPS + basic auth; must match install_demo_configuration password)
+OPENSEARCH_USE_SSL=true
+OPENSEARCH_USER=admin
+OPENSEARCH_PASSWORD='M1rrulations!Search'
+ENVEOF
+    echo "Appended OpenSearch TLS/auth to .env — set OPENSEARCH_PASSWORD if yours differs."
 fi
 
 # Load .env for DB_HOST check
@@ -38,7 +50,7 @@ DB_HOST="${DB_HOST:-localhost}"
 
 # Add swap if not already present (needed for OpenSearch on small instances)
 if ! swapon --show | grep -q /swapfile; then
-    sudo dd if=/dev/zero of=/swapfile bs=128M count=16
+    sudo dd if=/dev/zero of=/swapfile bs=128M count=4
     sudo chmod 600 /swapfile
     sudo mkswap /swapfile
     sudo swapon /swapfile
