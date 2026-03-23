@@ -40,13 +40,13 @@ class MockDBLayer:  # pylint: disable=too-few-public-methods
         """Return all dummy records without filtering."""
         return self._items()
 
-    def search( # pylint: disable=too-many-arguments,too-many-positional-arguments,too-many-locals
+    def search( # pylint: disable=too-many-arguments,too-many-positional-arguments,too-many-locals,unused-argument
             self,
             query: str,
             document_type_param: str = None,
             agency: List[str] = None,
             cfr_part_param: List[str] = None,
-            start_date: str = None, # pylint: disable=unused-argument
+            start_date: str = None,
             end_date: str = None) \
             -> List[Dict[str, Any]]:
         q = re.sub(r'[^\w\s-]', '', (query or "")).strip().lower()

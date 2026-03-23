@@ -50,7 +50,7 @@ class DBLayer:
             cur.execute(sql, params)
             return {row[0] for row in cur.fetchall()}
 
-    def _search_dockets_postgres(  # pylint: disable=too-many-arguments,too-many-positional-arguments
+    def _search_dockets_postgres(  # pylint: disable=too-many-arguments,too-many-positional-arguments,too-many-locals
             self, query: str, docket_type_param: str = None,
             agency: List[str] = None,
             cfr_part_param: List[str] = None,
@@ -149,7 +149,7 @@ class DBLayer:
         """
         return title_ids | cfr_ids | doc_title_ids
 
-    def _apply_filters(self, sql: str, params: list, docket_type_param: str,
+    def _apply_filters(self, sql: str, params: list, docket_type_param: str, # pylint: disable=too-many-arguments,too-many-positional-arguments
                        agency: List[str], start_date: str = None,
                        end_date: str = None) -> Tuple[str, list]:
         """Append optional WHERE clauses and return updated sql, params."""
@@ -168,7 +168,7 @@ class DBLayer:
             params.append(end_date)
         return sql, params
 
-    def _fetch_dockets(self, docket_ids: set, docket_type_param: str,
+    def _fetch_dockets(self, docket_ids: set, docket_type_param: str, # pylint: disable=too-many-arguments,too-many-positional-arguments,too-many-locals
                        agency: List[str], start_date: str = None,
                        end_date: str = None) -> List[Dict[str, Any]]:
         """Run the final JOIN query for the given docket_ids and return results."""
@@ -194,7 +194,7 @@ class DBLayer:
                 self._process_docket_row(dockets, row)
             return [{**d, "cfr_refs": list(d["cfr_refs"].values())} for d in dockets.values()]
 
-    def _search_dockets(self, query: str, docket_type_param: str = None,
+    def _search_dockets(self, query: str, docket_type_param: str = None, # pylint: disable=too-many-arguments,too-many-positional-arguments,too-many-locals
                         agency: List[str] = None, cfr_part_param: List[str] = None,
                         start_date: str = None,
                         end_date: str = None) -> List[Dict[str, Any]]:
@@ -290,7 +290,7 @@ class DBLayer:
             print(f"OpenSearch query failed: {e}")
             return []
 
-    def _run_text_match_queries(
+    def _run_text_match_queries( # pylint: disable=too-many-statements
             self, opensearch_client, terms: List[str]) -> List[Dict[str, Any]]:
         """Execute all three OpenSearch queries and merge their results."""
         def buckets(resp):
