@@ -61,6 +61,27 @@ def cfr_part_filter_patterns(cfr_part_param) -> List[str]:
     return [p for p in (_cfr_part_item_pattern(i) for i in cfr_part_param) if p]
 
 
+def _cfr_exact_title_part_pairs(cfr_part_param) -> List[tuple[str, str]]:
+    """
+    Extract exact CFR (title, part) pairs from dict-style filter payloads.
+
+    Used as a second-pass filter to preserve older behavior from the
+    federal_register_documents table when clients send
+    ``[{\"title\": \"...\", \"part\": \"...\"}]``.
+    """
+    if not cfr_part_param:
+        return []
+    pairs: List[tuple[str, str]] = []
+    for item in cfr_part_param:
+        if not isinstance(item, dict):
+            continue
+        title = str(item.get("title") or "").strip()
+        part = str(item.get("part") or "").strip()
+        if title and part:
+            pairs.append((title, part))
+    return pairs
+
+
 def _parse_positive_int_env(var_name: str, default: int) -> int:
     """Like port parsing but only enforces value >= 1 (empty/invalid → default)."""
     raw = (os.getenv(var_name) or "").strip()
@@ -108,7 +129,33 @@ class DBLayer:
             -> List[Dict[str, Any]]:
         if self.conn is None:
             return []
-        return self._search_dockets_postgres(query, docket_type_param, agency, cfr_part_param)
+        results = self._search_dockets_postgres(
+            query, docket_type_param, agency, cfr_part_param
+        )
+        exact_pairs = _cfr_exact_title_part_pairs(cfr_part_param)
+        if not exact_pairs:
+            return results
+        allowed = self._get_cfr_docket_ids(exact_pairs)
+        return [row for row in results if row["docket_id"] in allowed]
+
+    def _get_cfr_docket_ids(self, cfr_pairs: List[tuple[str, str]]) -> Set[str]:
+        """
+        Return docket IDs matching exact CFR title+part pairs.
+
+        This keeps the stricter CFR behavior from older search flow while still
+        using the current SQL/cfrPart substring filtering for compatibility.
+        """
+        if self.conn is None or not cfr_pairs:
+            return set()
+        clauses = " OR ".join("(cfr_title = %s AND cfr_part = %s)" for _ in cfr_pairs)
+        sql = f"SELECT DISTINCT docket_id FROM federal_register_documents WHERE ({clauses})"
+        params: List[str] = []
+        for title, part in cfr_pairs:
+            params.append(title)
+            params.append(part)
+        with self.conn.cursor() as cur:
+            cur.execute(sql, params)
+            return {row[0] for row in cur.fetchall()}
 
     def _search_dockets_postgres(  # pylint: disable=too-many-locals
             self, query: str, docket_type_param: str = None,
@@ -146,6 +193,23 @@ class DBLayer:
             clauses = " OR ".join("cp.cfrPart ILIKE %s" for _ in cfr_patterns)
             sql += f" AND ({clauses})"
             params.extend(f"%{p}%" for p in cfr_patterns)
+        # For dict-style filters ({title, part}), also constrain dockets by exact
+        # CFR title/part mapping in federal_register_documents in this first query.
+        exact_pairs = _cfr_exact_title_part_pairs(cfr_part_param)
+        if exact_pairs:
+            exact_clauses = " OR ".join(
+                "(frd.cfr_title = %s AND frd.cfr_part = %s)"
+                for _ in exact_pairs
+            )
+            sql += (
+                " AND EXISTS ("
+                "SELECT 1 FROM federal_register_documents frd "
+                "WHERE frd.docket_id = d.docket_id "
+                f"AND ({exact_clauses})"
+                ")"
+            )
+            for title, part in exact_pairs:
+                params.extend([title, part])
 
         sql += " ORDER BY d.modify_date DESC, d.docket_id, cp.title, cp.cfrPart LIMIT 50"
 

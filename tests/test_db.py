@@ -32,6 +32,34 @@ def test_db_layer_no_conn_returns_empty():
     assert db.search("anything") == []
 
 
+def test_search_with_cfr_dict_applies_exact_docket_filter(monkeypatch):
+    """Dict-style CFR filter keeps only dockets returned by exact title+part map."""
+    rows = [
+        ("DOC-001", "First", "CMS", "Rulemaking", "2024-01-01", "Title 42", "413", "http://a"),
+        ("DOC-002", "Second", "EPA", "Rulemaking", "2024-01-01", "Title 40", "40", "http://b"),
+    ]
+    db = DBLayer(conn=_FakeConn(rows))
+    monkeypatch.setattr(DBLayer, "_get_cfr_docket_ids", lambda self, _pairs: {"DOC-002"})
+
+    results = db.search(
+        "docket",
+        cfr_part_param=[{"title": "42 CFR Parts 413 and 512", "part": "413"}],
+    )
+
+    assert [r["docket_id"] for r in results] == ["DOC-002"]
+
+
+def test_search_with_plain_cfr_string_skips_exact_cfr_lookup(monkeypatch):
+    """String-style CFR filters should not invoke exact title+part lookup."""
+    db = DBLayer(conn=_FakeConn([]))
+
+    def should_not_call(self, _pairs):
+        raise AssertionError("_get_cfr_docket_ids should not run for plain string filters")
+
+    monkeypatch.setattr(DBLayer, "_get_cfr_docket_ids", should_not_call)
+    db.search("x", cfr_part_param=["413"])
+
+
 def test_get_db_returns_dblayer():
     """Test the get_db factory function returns a DBLayer"""
     db = get_db()
@@ -123,7 +151,7 @@ def test_search_dockets_postgres_no_filter_no_extra_clauses():
 
 
 def test_search_dockets_postgres_cfr_filter_from_api_dict():
-    """cfr_part as list of {title, part} dicts (from Flask) becomes ILIKE on cfrPart."""
+    """Dict CFR filter applies cfrPart ILIKE and exact FRD title+part EXISTS."""
     db = DBLayer(conn=_FakeConn([]))
     db._search_dockets_postgres(
         "renal",
@@ -131,7 +159,10 @@ def test_search_dockets_postgres_cfr_filter_from_api_dict():
     )
     sql, params = db.conn.cursor_obj.executed
     assert "cp.cfrPart ILIKE %s" in sql
-    assert params == ["%renal%", "%413%"]
+    assert "federal_register_documents" in sql
+    assert "frd.cfr_title = %s" in sql
+    assert "frd.cfr_part = %s" in sql
+    assert params == ["%renal%", "%413%", "42 CFR Parts 413 and 512", "413"]
 
 
 def test_search_dockets_postgres_cfr_empty_dict_skips_cfr_clause():
