@@ -1418,121 +1418,81 @@ INSERT INTO cfrParts(
 -- Made up for now until we have actual data
 
 INSERT INTO federal_register_documents (
-    docket_id,
+    document_number,
     document_id,
-    agency_id,
     document_title,
     document_type,
-    fr_doc_num,
-    cfr_title,
-    cfr_part
+    abstract,
+    publication_date,
+    effective_on,
+    docket_ids,
+    agency_id,
+    agency_names,
+    topics,
+    significant,
+    regulations_id_numbers,
+    html_url,
+    pdf_url,
+    json_url,
+    start_page,
+    end_page
 ) VALUES (
-    'CMS-2025-0304',
-    'CMS-2025-0304-0001',
-    'CMS',
-    'Medicare and Medicaid Programs; CY 2026 Payment Policies under the Physician Fee Schedule and Other Changes to Part B Payment and Coverage Policies (CMS-1832-P)',
-    'Proposed Rule',
+    '2025-07127',
     NULL,
-    '42',
-    '405'
+    'Japan Electrical Safety & Environment Technology Laboratories: Application for Recognition',
+    'Notice',
+    'In this notice, OSHA announces the application of Japan Electrical Safety & Environment Technology Laboratories (JET), for recognition as a Nationally Recognized Testing Laboratory (NRTL) and presents the agency''s preliminary finding to grant this recognition.',
+    '2025-04-25',
+    NULL,
+    {"Docket No. OSHA-2025-0005"},
+    'labor-department',
+    {"Labor Department","Occupational Safety and Health Administration"},
+    {},
+    NULL,
+    {},
+    'https://www.federalregister.gov/documents/2025/04/25/2025-07127/japan-electrical-safety-and-environment-technology-laboratories-application-for-recognition',
+    'https://www.govinfo.gov/content/pkg/FR-2025-04-25/pdf/2025-07127.pdf',
+    'https://www.federalregister.gov/api/v1/documents/2025-07127?publication_date=2025-04-25',
+    17462,
+    17464
 );
 
 INSERT INTO federal_register_documents (
-    docket_id,
+    document_number,
     document_id,
-    agency_id,
     document_title,
     document_type,
-    fr_doc_num,
-    cfr_title,
-    cfr_part
-) VALUES (
-    'CMS-2025-0304',
-    'CMS-2025-0304-0009',
-    'CMS',
-    'Medicare and Medicaid Programs: Calendar Year 2026 Payment Policies under the Physician Fee Schedule and Other Changes to Part B Payment and Coverage Policies; Medicare Shared Savings Program Requirements; and Medicare Prescription Drug Inflation Rebate Program',
-    'Proposed Rule',
-    '2025-13271',
-    '42',
-    '405'
-);
-
-INSERT INTO federal_register_documents (
-    docket_id,
-    document_id,
+    abstract,
+    publication_date,
+    effective_on,
+    docket_ids,
     agency_id,
-    document_title,
-    document_type,
-    fr_doc_num,
-    cfr_title,
-    cfr_part
+    agency_names,
+    topics,
+    significant,
+    regulations_id_numbers,
+    html_url,
+    pdf_url,
+    json_url,
+    start_page,
+    end_page
 ) VALUES (
-    'CMS-2025-0304',
-    'CMS-2025-0304-1544',
-    'CMS',
-    'Medicare and Medicaid Programs: Calendar Year 2026 Payment Policies under the Physician Fee Schedule and Other Changes to Part B Payment and Coverage Policies; Medicare Shared Savings Program Requirements; and Medicare Prescription Drug Inflation Rebate Program; Correction',
-    'Proposed Rule',
-    '2025-15492',
-    '42',
-    '405'
-);
-
-INSERT INTO federal_register_documents (
-    docket_id,
-    document_id,
-    agency_id,
-    document_title,
-    document_type,
-    fr_doc_num,
-    cfr_title,
-    cfr_part
-) VALUES (
-    'CMS-2025-0304',
-    'CMS-2025-0304-14108',
-    'CMS',
-    'Medicare and Medicaid Programs: Calendar Year 2026 Payment Policies under the Physician Fee Schedule and Other Changes to Part B Payment and Coverage Policies; Medicare Shared Savings Program Requirements; and Medicare Prescription Drug Inflation Rebate Program',
-    'Rule',
-    '2025-19787',
-    '42',
-    '405'
-);
-
-INSERT INTO federal_register_documents (
-    docket_id,
-    document_id,
-    agency_id,
-    document_title,
-    document_type,
-    fr_doc_num,
-    cfr_title,
-    cfr_part
-) VALUES (
-    'CMS-2025-0304',
-    'CMS-2025-0304-14109',
-    'CMS',
-    'Medicare and Medicaid Programs: Calendar Year 2026 Payment Policies Under the Physician Fee Schedule and Other Changes to Part B Payment and Coverage Policies; Medicare Shared Savings Program Requirements; and Medicare Prescription Drug Inflation Rebate Program; Correction',
-    'Rule',
-    '2025-21458',
-    '42',
-    '405'
-);
-
-INSERT INTO federal_register_documents (
-    docket_id,
-    document_id,
-    agency_id,
-    document_title,
-    document_type,
-    fr_doc_num,
-    cfr_title,
-    cfr_part
-) VALUES (
-    'CMS-2025-0240',
-    'CMS-2025-0240-0001',
-    'CMS',
-    'CY 2026 Changes to the End-Stage Renal Disease (ESRD) Prospective Payment System and Quality Incentive Program. CMS1830-P Display',
-    'Proposed Rule',
-    '2025-20681',
-    '42',
-    '413'
+    '2025-13887',
+    NULL,
+    'Japan Electrical Safety & Environment Technology Laboratories: Grant of Recognition',
+    'Notice',
+    'In this notice, OSHA announces the final decision to grant recognition to Japan Electrical Safety & Environment Technology Laboratories (JET), for recognition as a Nationally Recognized Testing Laboratory (NRTL).',
+    '2025-07-24',
+    '2025-07-24',
+    {"Docket No. OSHA-2025-0005"},
+    'labor-department',
+    {"Labor Department","Occupational Safety and Health Administration"},
+    {},
+    NULL,
+    {},
+    'https://www.federalregister.gov/documents/2025/07/24/2025-13887/japan-electrical-safety-and-environment-technology-laboratories-grant-of-recognition',
+    'https://www.govinfo.gov/content/pkg/FR-2025-07-24/pdf/2025-13887.pdf',
+    'https://www.federalregister.gov/api/v1/documents/2025-13887?publication_date=2025-07-24',
+    34897,
+    34899
 );
