@@ -1624,3 +1624,43 @@ INSERT INTO federal_register_documents (
     34897,
     34899
 );
+
+INSERT INTO federal_register_documents (
+    document_number,
+    document_id,
+    document_title,
+    document_type,
+    abstract,
+    publication_date,
+    effective_on,
+    docket_ids,
+    agency_id,
+    agency_names,
+    topics,
+    significant,
+    regulations_id_numbers,
+    html_url,
+    pdf_url,
+    json_url,
+    start_page,
+    end_page
+) VALUES (
+    '2026-04829',
+    NULL,
+    'Airworthiness Directives; The Boeing Company Airplanes',
+    'Rule',
+    'The FAA is adopting a new airworthiness directive (AD) for certain The Boeing Company Model 767-200, -300, -300F, and -400ER series airplanes. This AD was prompted by discovery of a crack at one of the forward lower fastener holes following replacement of a cracked underwing longeron (UWL) fitting. This AD requires performing an open hole high frequency eddy current (HFEC) inspection for cracks of the fastener holes common to the UWL fitting, upper drag splice angle, and lower drag splice angle, and applicable on-condition actions. The FAA is issuing this AD to address the unsafe condition on these products.',
+    '2026-03-12',
+    '2026-04-16',
+    {"Docket No. FAA-2025-0618", 'Project Identifier AD-2024-00637-T', 'Amendment 39-23280', 'AD 2026-05-07'},
+    'transportation-depar',
+    {"Transportation Department","Federal Aviation Administration"},
+    {'Air transportation', 'Aircraft', 'Aviation safety', 'Incorporation by reference', 'Safety'},
+    FALSE,
+    {'2120-AA64'},
+    'https://www.federalregister.gov/documents/2026/03/12/2026-04829/airworthiness-directives-the-boeing-company-airplanes',
+    'https://www.govinfo.gov/content/pkg/FR-2026-03-12/pdf/2026-04829.pdf',
+    'https://www.federalregister.gov/api/v1/documents/2026-04829?publication_date=2026-03-12',
+    12059,
+    12064
+);
