@@ -649,17 +649,16 @@ def _opensearch_local_kwargs(host: str, port: int) -> Dict[str, Any]:
         or ""
     ).strip()
     use_ssl = _opensearch_use_ssl_from_env(user, password)
-    verify = _env_flag_true("OPENSEARCH_VERIFY_CERTS")
     host_entry: Dict[str, Any] = {"host": host, "port": port}
     if use_ssl:
         host_entry["scheme"] = "https"
     kwargs: Dict[str, Any] = {
         "hosts": [host_entry],
         "use_ssl": use_ssl,
-        "verify_certs": verify if use_ssl else False,
+        "verify_certs": _env_flag_true("OPENSEARCH_VERIFY_CERTS") if use_ssl else False,
         "ssl_show_warn": False,
     }
-    if use_ssl and not verify:
+    if use_ssl and not _env_flag_true("OPENSEARCH_VERIFY_CERTS"):
         kwargs["ssl_assert_hostname"] = False
     if user and password:
         kwargs["http_auth"] = (user, password)
