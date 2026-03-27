@@ -640,8 +640,8 @@ def _get_opensearch_secrets_from_aws() -> Dict[str, Any]:
     return json.loads(response["SecretString"])
 
 
-def _opensearch_local_kwargs(host: str, port: int) -> Dict[str, Any]:
-    # pylint: disable=too-many-locals
+def _opensearch_local_kwargs(  # pylint: disable=too-many-locals
+        host: str, port: int) -> Dict[str, Any]:
     """Build kwargs for local/dev OpenSearch connection."""
     user = (os.getenv("OPENSEARCH_USER") or os.getenv("OPENSEARCH_USERNAME") or "").strip()
     password = (
