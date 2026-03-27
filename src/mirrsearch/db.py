@@ -54,7 +54,7 @@ def cfr_part_filter_patterns(cfr_part_param) -> List[str]:
     """
     Build lowercase substring patterns for CFR part filtering (OpenSearch merge path).
 
-    Accepts plain strings (e.g. ``\"413\"``) or dicts with a ``part`` key from the UI.
+    Accepts plain strings (e.g. ``"413"``) or dicts with a ``part`` key from the UI.
     """
     if not cfr_part_param:
         return []
@@ -66,7 +66,7 @@ def _cfr_exact_title_part_pairs(cfr_part_param) -> List[tuple[str, str]]:
     Extract exact CFR (title, part) pairs from dict-style filter payloads.
 
     Used as a second-pass filter to preserve older behavior when clients send
-    ``[{\"title\": \"...\", \"part\": \"...\"}]``.
+    ``[{"title": "...", "part": "..."}]``.
     """
     if not cfr_part_param:
         return []
@@ -207,8 +207,6 @@ class DBLayer:
             clauses = " OR ".join("cp.cfrPart ILIKE %s" for _ in cfr_patterns)
             sql += f" AND ({clauses})"
             params.extend(f"%{p}%" for p in cfr_patterns)
-        # For dict-style filters ({title, part}), also constrain dockets by exact
-        # CFR title/part mapping in cfrparts (via documents->docket_id) in this first query.
         exact_pairs = _cfr_exact_title_part_pairs(cfr_part_param)
         if exact_pairs:
             exact_clauses = " OR ".join(
@@ -316,7 +314,7 @@ class DBLayer:
 
     @staticmethod
     def _build_docket_agg_query_unique_comments(agg_name: str, match_clauses: List[Dict]) -> Dict:
-        """Like _build_docket_agg_query but counts unique commentId per docket (not OS doc hits)."""
+        """Like _build_docket_agg_query but counts unique commentId per docket."""
         return {
             "size": 0,
             "aggs": {
@@ -365,7 +363,7 @@ class DBLayer:
             comments_resp: Dict, extracted_resp: Dict) -> Dict[str, int]:
         """
         Union commentIds from comments index and extracted-text index per docket.
-        Each logical comment counts at most once (multiple attachment chunks = 1).
+        Each logical comment counts at most once.
         """
         from_comments = DBLayer._comment_ids_per_docket_from_agg(
             comments_resp, "matching_comments")
@@ -393,28 +391,15 @@ class DBLayer:
 
     def text_match_terms(
             self, terms: List[str], opensearch_client=None) -> List[Dict[str, Any]]:
-        """
-        Search OpenSearch for dockets containing the given terms.
-
-        Searches:
-        - documents index: title and documentText fields
-        - comments index: commentText field
-        - comments_extracted_text index: extractedText field (counted as document-side evidence)
-
-        Returns list of {docket_id, document_match_count, comment_match_count}.
-        comment_match_count is distinct commentId matches from comments index only.
-        """
+        """Search OpenSearch for dockets containing the given terms."""
         if opensearch_client is None:
             opensearch_client = get_opensearch_connection()
         try:
             return self._run_text_match_queries(opensearch_client, terms)
         except (KeyError, AttributeError) as e:
-            # Malformed responses are treated as "no OpenSearch hits"
             print(f"OpenSearch query failed: {e}")
             return []
         except Exception as e:  # pylint: disable=broad-exception-caught
-            # Includes connection/transport errors when OpenSearch is down.
-            # The caller falls back to SQL-only when we return [].
             print(f"OpenSearch query failed (fallback to SQL): {e}")
             return []
 
@@ -450,12 +435,7 @@ class DBLayer:
             docket_ids: List[str],
             opensearch_client=None
     ) -> Dict[str, Dict[str, int]]:
-        """
-        Return per-docket totals for documents and comments.
-
-        document_total_count: OpenSearch documents index rows per docket.
-        comment_total_count: distinct commentId values from comments index only.
-        """
+        """Return per-docket totals for documents and comments."""
         if not docket_ids:
             return {}
 
@@ -558,7 +538,6 @@ class DBLayer:
         self._accumulate_counts(
             docket_counts, buckets(doc_resp), "matching_docs", "document_match_count"
         )
-        # comNum is strictly commentText matches from comments index.
         comment_ids_by_docket = self._comment_ids_per_docket_from_agg(
             comment_resp, "matching_comments"
         )
@@ -568,7 +547,6 @@ class DBLayer:
             )
             docket_counts[did]["comment_match_count"] = len(ids)
 
-        # Treat extracted attachment text as document-side evidence.
         extracted_ids_by_docket = self._comment_ids_per_docket_from_agg(
             extracted_resp, "matching_extracted"
         )
@@ -593,10 +571,10 @@ def _get_secrets_from_aws() -> Dict[str, str]:
 
     client = boto3.client(
         "secretsmanager",
-        region_name="YOUR_REGION"
+        region_name="us-east-1"
     )
     response = client.get_secret_value(
-        SecretId="YOUR_SECRET_NAME"
+        SecretId="mirrulationsdb/postgres/master"
     )
     return json.loads(response["SecretString"])
 
@@ -652,12 +630,44 @@ def _opensearch_use_ssl_from_env(user: str, password: str) -> bool:
     return bool(not raw and user and password)
 
 
+def _get_opensearch_secrets_from_aws() -> Dict[str, Any]:
+    """Fetch OpenSearch connection details from AWS Secrets Manager."""
+    import boto3 as boto3_local  # pylint: disable=import-outside-toplevel
+    client = boto3_local.client(
+        "secretsmanager",
+        region_name=os.getenv("AWS_REGION", "us-east-1")
+    )
+    response = client.get_secret_value(
+        SecretId=os.getenv("OPENSEARCH_SECRET_NAME", "mirrulations/opensearch")
+    )
+    return json.loads(response["SecretString"])
+
+
 def _opensearch_client_kwargs() -> Dict[str, Any]:
     """
     Build keyword args for :class:`~opensearchpy.OpenSearch`.
 
     Extracted so :func:`get_opensearch_connection` stays small for pylint.
     """
+    use_aws = os.getenv("USE_AWS_SECRETS", "").lower() in {"1", "true", "yes", "on"}
+
+    if use_aws:
+        from opensearchpy import AWSV4SignerAuth, RequestsHttpConnection  # pylint: disable=import-outside-toplevel
+        import boto3 as boto3_local  # pylint: disable=import-outside-toplevel
+        secret = _get_opensearch_secrets_from_aws()
+        host = secret.get("host", "localhost")
+        port = int(secret.get("port", 443))
+        region = os.getenv("AWS_REGION", "us-east-1")
+        credentials = boto3_local.Session().get_credentials()
+        auth = AWSV4SignerAuth(credentials, region, "aoss")
+        return {
+            "hosts": [{"host": host, "port": port}],
+            "http_auth": auth,
+            "use_ssl": True,
+            "verify_certs": True,
+            "connection_class": RequestsHttpConnection,
+        }
+
     host = (os.getenv("OPENSEARCH_HOST") or "localhost").strip() or "localhost"
     port = _parse_opensearch_port_env("OPENSEARCH_PORT", 9200)
     user = (os.getenv("OPENSEARCH_USER") or os.getenv("OPENSEARCH_USERNAME") or "").strip()
@@ -688,3 +698,4 @@ def get_opensearch_connection() -> OpenSearch:
     if LOAD_DOTENV is not None:
         LOAD_DOTENV()
     return OpenSearch(**_opensearch_client_kwargs())
+
