@@ -460,9 +460,7 @@ class DBLayer:
             }
 
             comment_body = self._comment_total_query(docket_ids)
-
             doc_response = opensearch_client.search(index="documents", body=doc_query)
-
             comment_response = opensearch_client.search(
                 index="comments",
                 body=comment_body,
@@ -568,7 +566,6 @@ class DBLayer:
 def _get_secrets_from_aws() -> Dict[str, str]:
     if boto3 is None:
         raise ImportError("boto3 is required to use AWS Secrets Manager.")
-
     client = boto3.client(
         "secretsmanager",
         region_name="us-east-1"
@@ -643,6 +640,32 @@ def _get_opensearch_secrets_from_aws() -> Dict[str, Any]:
     return json.loads(response["SecretString"])
 
 
+def _opensearch_local_kwargs(host: str, port: int) -> Dict[str, Any]:
+    """Build kwargs for local/dev OpenSearch connection."""
+    user = (os.getenv("OPENSEARCH_USER") or os.getenv("OPENSEARCH_USERNAME") or "").strip()
+    password = (
+        os.getenv("OPENSEARCH_PASSWORD")
+        or os.getenv("OPENSEARCH_INITIAL_ADMIN_PASSWORD")
+        or ""
+    ).strip()
+    use_ssl = _opensearch_use_ssl_from_env(user, password)
+    verify = _env_flag_true("OPENSEARCH_VERIFY_CERTS")
+    host_entry: Dict[str, Any] = {"host": host, "port": port}
+    if use_ssl:
+        host_entry["scheme"] = "https"
+    kwargs: Dict[str, Any] = {
+        "hosts": [host_entry],
+        "use_ssl": use_ssl,
+        "verify_certs": verify if use_ssl else False,
+        "ssl_show_warn": False,
+    }
+    if use_ssl and not verify:
+        kwargs["ssl_assert_hostname"] = False
+    if user and password:
+        kwargs["http_auth"] = (user, password)
+    return kwargs
+
+
 def _opensearch_client_kwargs() -> Dict[str, Any]:
     """
     Build keyword args for :class:`~opensearchpy.OpenSearch`.
@@ -670,32 +693,10 @@ def _opensearch_client_kwargs() -> Dict[str, Any]:
 
     host = (os.getenv("OPENSEARCH_HOST") or "localhost").strip() or "localhost"
     port = _parse_opensearch_port_env("OPENSEARCH_PORT", 9200)
-    user = (os.getenv("OPENSEARCH_USER") or os.getenv("OPENSEARCH_USERNAME") or "").strip()
-    password = (
-        os.getenv("OPENSEARCH_PASSWORD")
-        or os.getenv("OPENSEARCH_INITIAL_ADMIN_PASSWORD")
-        or ""
-    ).strip()
-    use_ssl = _opensearch_use_ssl_from_env(user, password)
-    verify = _env_flag_true("OPENSEARCH_VERIFY_CERTS")
-    host_entry: Dict[str, Any] = {"host": host, "port": port}
-    if use_ssl:
-        host_entry["scheme"] = "https"
-    kwargs: Dict[str, Any] = {
-        "hosts": [host_entry],
-        "use_ssl": use_ssl,
-        "verify_certs": verify if use_ssl else False,
-        "ssl_show_warn": False,
-    }
-    if use_ssl and not verify:
-        kwargs["ssl_assert_hostname"] = False
-    if user and password:
-        kwargs["http_auth"] = (user, password)
-    return kwargs
+    return _opensearch_local_kwargs(host, port)
 
 
 def get_opensearch_connection() -> OpenSearch:
     if LOAD_DOTENV is not None:
         LOAD_DOTENV()
     return OpenSearch(**_opensearch_client_kwargs())
-
