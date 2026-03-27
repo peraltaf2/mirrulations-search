@@ -666,7 +666,7 @@ def _opensearch_local_kwargs(  # pylint: disable=too-many-locals
     return kwargs
 
 
-def _opensearch_client_kwargs() -> Dict[str, Any]:
+def _opensearch_client_kwargs() -> Dict[str, Any]:  # pylint: disable=too-many-locals
     """
     Build keyword args for :class:`~opensearchpy.OpenSearch`.
 
