@@ -49,20 +49,30 @@ def _agency_matches_filter(row, agency):
     return any((a or "").strip().lower() in aid for a in agency)
 
 
+def _ref_has_exact_part(ref, title, part):
+    """True if ref matches the given title and part exactly."""
+    if str(ref.get("title") or "").strip() != title:
+        return False
+    return any(str(pk).strip() == part for pk in (ref.get("cfrParts") or {}).keys())
+
+
+def _cfr_exact_pairs_match_row(row, exact_pairs):
+    """True if any (title, part) pair matches any cfr_ref in the row."""
+    cfr_refs = row.get("cfr_refs") or []
+    return any(
+        _ref_has_exact_part(ref, title, part)
+        for title, part in exact_pairs
+        for ref in cfr_refs
+    )
+
+
 def _cfr_matches_filter(row, cfr_part_param):
     """Postgres: OR of cp.cfrPart ILIKE when CFR filter set."""
     if not cfr_part_param:
         return True
     exact_pairs = _cfr_exact_title_part_pairs(cfr_part_param)
     if exact_pairs:
-        cfr_refs = row.get("cfr_refs") or []
-        for title, part in exact_pairs:
-            for ref in cfr_refs:
-                if str(ref.get("title") or "").strip() == title:
-                    for part_key in (ref.get("cfrParts") or {}).keys():
-                        if str(part_key).strip() == part:
-                            return True
-        return False
+        return _cfr_exact_pairs_match_row(row, exact_pairs)
     patterns = cfr_part_filter_patterns(cfr_part_param)
     return not patterns or _cfr_part_patterns_match_row(row, patterns)
 
