@@ -196,7 +196,20 @@ def main():
             sys.exit(1)
     finally:
         conn.close()
-
+# get htm files will take any htm or html text reads text from the docket directory and return list of strings of what is in the htm files
+def get_htm_files(docket_dir: Path) -> list[str]:
+    """Get all .htm or .html files in the docket directory."""
+    list_htms = list(docket_dir.glob("**/*.htm")) + list(docket_dir.glob("**/*.html"))
+    htm_texts = []
+    for htm_file in list_htms:
+        try:
+            text = htm_file.read_text(encoding="utf-8", errors="ignore")
+            htm_texts.append(text)
+        except Exception as e:
+            log.warning("Could not read file %s: %s", htm_file, e)
+    return htm_texts
 
 if __name__ == "__main__":
-    main()
+    output_text = get_htm_files(Path("/Users/bradenqkirk/Documents/classes/coleman/repos/mirrulations-search/FAA-2025-0618/raw-data/documents"))  # Test function
+    print(output_text)
+    # main()
