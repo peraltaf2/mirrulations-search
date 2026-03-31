@@ -1,18 +1,21 @@
 #!/usr/bin/env python3
 """
 Pipeline:
-- Read mirrulations-fetch docket folder
+- Download docket from S3 via mirrulations-fetch
 - Extract FR doc numbers from documents/*.json
 - Fetch each FR document from the Federal Register API
-- Call ingest_federal_registry_document.py for each
+- Ingest each into Postgres via ingest_federal_registry_document.py
 
 Usage:
-  python db/ingest_fed_reg_docs_for_docket.py \
-    --docket-dir data/CMS_2026
+  python db/ingest_fed_reg_docs_for_docket.py --docket-id OSHA-2025-0005
+
+Requires mirrulations-fetch to be installed:
+  pip install -e /path/to/mirrulations-fetch
 """
 
 import argparse
 import json
+import shutil
 import subprocess
 import tempfile
 import urllib.error
@@ -21,6 +24,34 @@ from pathlib import Path
 from typing import Set
 
 FR_API_URL = "https://www.federalregister.gov/api/v1/documents/{}.json"
+
+
+# ─── Download docket from S3 ─────────────────────────────────────────────────
+
+def download_docket(docket_id: str, output_dir: Path) -> Path:
+    if shutil.which("mirrulations-fetch") is None:
+        raise SystemExit(
+            "mirrulations-fetch not found. Install it with:\n"
+            "  pip install -e /path/to/mirrulations-fetch"
+        )
+
+    print(f"Downloading docket {docket_id} from S3...")
+    cmd = [
+        "mirrulations-fetch",
+        docket_id,
+        "--output-folder", str(output_dir),
+        "--no-comments",
+    ]
+    try:
+        subprocess.run(cmd, check=True)
+    except subprocess.CalledProcessError:
+        raise SystemExit(f"mirrulations-fetch failed for docket {docket_id}")
+
+    docket_dir = output_dir / docket_id / "raw-data"
+    if not docket_dir.exists():
+        raise SystemExit(f"Expected download output not found: {docket_dir}")
+
+    return docket_dir
 
 
 # ─── Extract FR doc numbers ───────────────────────────────────────────────────
@@ -117,16 +148,14 @@ def run_ingest(frdocnum: str):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument(
-        "--docket-dir",
+        "--docket-id",
         required=True,
-        help="Path to mirrulations-fetch docket folder (contains /documents)",
+        help="Regulations.gov docket ID, e.g. OSHA-2025-0005",
     )
     args = ap.parse_args()
 
-    docket_dir = Path(args.docket_dir)
-
-    if not docket_dir.exists():
-        raise SystemExit(f"Docket folder not found: {docket_dir}")
+    output_dir = Path.cwd()
+    docket_dir = download_docket(args.docket_id, output_dir)
 
     print("Collecting FR document numbers...")
     frdocnums = collect_frdocnums(docket_dir)
