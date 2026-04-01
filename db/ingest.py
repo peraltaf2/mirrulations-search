@@ -196,10 +196,13 @@ def main():
             sys.exit(1)
     finally:
         conn.close()
-# get htm files will take any htm or html text reads text from the docket directory and return list of strings of what is in the htm files
+# get htm files will take any htm or html text reads text from the docket directory and 
+# return list of jsons of 
+# documentHtm - the text of the htm file
+# docketId - the docket id extracted from the directory name
 def get_htm_files(docket_dir: Path) -> list[str]:
     """Get all .htm or .html files in the docket directory."""
-    list_htms = list(docket_dir.glob("**/*.htm")) + list(docket_dir.glob("**/*.html"))
+    list_htms = list(docket_dir.glob("raw-data/documents/**/*.htm")) + list(docket_dir.glob("raw-data/documents/**/*.html"))
     htm_texts = []
     for htm_file in list_htms:
         try:
@@ -207,9 +210,14 @@ def get_htm_files(docket_dir: Path) -> list[str]:
             htm_texts.append(text)
         except Exception as e:
             log.warning("Could not read file %s: %s", htm_file, e)
-    return htm_texts
+    docket_id = get_docket_ID(docket_dir)
+    return [{"docketId": docket_id, "documentHtm": text} for text in htm_texts]
+
+def get_docket_ID(docket_dir: Path) -> str:
+    """Extract docket ID from the directory name."""
+    return docket_dir.name.strip().upper()
 
 if __name__ == "__main__":
-    output_text = get_htm_files(Path("/Users/bradenqkirk/Documents/classes/coleman/repos/mirrulations-search/FAA-2025-0618/raw-data/documents"))  # Test function
+    output_text = get_htm_files(Path("/Users/bradenqkirk/Documents/classes/coleman/repos/mirrulations-search/FAA-2025-0618"))  # Test function
     print(output_text)
     # main()
