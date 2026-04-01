@@ -255,7 +255,7 @@
 
   .collections-sidebar-header h2 {
     margin: 0;
-    font-size: 36px;
+    font-size: 24px;
     font-weight: 800;
     line-height: 1;
   }
@@ -303,7 +303,7 @@
     border: 0;
     border-radius: 22px;
     padding: 22px 20px;
-    font-size: 52px;
+    font-size: 22px;
     font-weight: 800;
     color: #fff;
     cursor: pointer;
@@ -327,7 +327,7 @@
   .collections-title {
     margin: 8px 0 16px;
     text-align: center;
-    font-size: 78px;
+    font-size: 72px;
     font-weight: 500;
     color: #202635;
   }
@@ -342,7 +342,7 @@
 
   .collections-summary {
     margin: 0;
-    font-size: 37px;
+    font-size: 18px;
     font-weight: 600;
     color: #2f3648;
   }
@@ -360,7 +360,7 @@
     background: #5a5fe6;
     color: #fff;
     padding: 0 24px;
-    font-size: 32px;
+    font-size: 16px;
     font-weight: 700;
     cursor: pointer;
   }
@@ -381,7 +381,7 @@
     color: #c53030;
     border-radius: 12px;
     padding: 0 14px;
-    font-size: 26px;
+    font-size: 16px;
     font-weight: 700;
     cursor: pointer;
   }
@@ -402,13 +402,13 @@
 
   .collection-result-card h3 {
     margin: 0 0 8px;
-    font-size: 37px;
+    font-size: 18px;
     color: #2a3142;
   }
 
   .collection-result-card p {
     margin: 4px 0;
-    font-size: 27px;
+    font-size: 14px;
     color: #4a4f61;
   }
 
@@ -418,7 +418,7 @@
     background: #e2e8ff;
     color: #3340a7;
     border-radius: 10px;
-    font-size: 22px;
+    font-size: 16px;
     font-weight: 700;
     padding: 8px 12px;
     cursor: pointer;
@@ -426,14 +426,14 @@
 
   .collections-muted {
     margin: 0;
-    font-size: 26px;
+    font-size: 15px;
     color: #6b7280;
   }
 
   .collections-error {
     margin: 0 0 8px;
     color: #b91c1c;
-    font-size: 24px;
+    font-size: 15px;
     font-weight: 700;
   }
 
