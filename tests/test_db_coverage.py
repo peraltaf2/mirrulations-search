@@ -1,4 +1,3 @@
-
 # pylint: disable=redefined-outer-name,protected-access
 import pytest
 import mirrsearch.db as db_module
@@ -8,7 +7,7 @@ from mirrsearch.db import DBLayer, _env_flag_true, _parse_positive_int_env
 class _FakeCursor:
     def __init__(self, rows=None):
         self._rows = rows or []
-        self.executed = []
+        self.executed = []  # Store tuples of (sql, params) for each execution
         self.rowcount = len(self._rows)
 
     def __enter__(self):
@@ -38,10 +37,8 @@ class _FakeConn:
         self.committed = False
 
     def cursor(self):
-        # Return a fresh cursor each call so multi-cursor methods work
-        return _FakeCursor(
-            self._fetchone_rows if self._fetchone_rows is not None else self._rows
-        )
+        # Return the same cursor object each time to maintain state
+        return self.cursor_obj
 
     def commit(self):
         self.committed = True
@@ -91,6 +88,23 @@ class _TrackingCursor:
 
     def close(self):
         pass
+
+
+# Helper function to avoid duplicate code
+def _setup_opensearch_test(monkeypatch, use_ssl=True, verify_certs=False):
+    """Setup OpenSearch test with common configuration."""
+    captured = {}
+
+    def fake_opensearch(**kwargs):
+        captured.update(kwargs)
+        return "client"
+
+    monkeypatch.setattr(db_module, "OpenSearch", fake_opensearch)
+    if use_ssl:
+        monkeypatch.setenv("OPENSEARCH_USE_SSL", "true")
+    if verify_certs:
+        monkeypatch.setenv("OPENSEARCH_VERIFY_CERTS", "true")
+    return captured
 
 
 # --- _env_flag_true ---
@@ -184,7 +198,8 @@ def test_get_cfr_docket_ids_multiple_pairs():
 def test_search_dockets_postgres_start_date_filter():
     db = DBLayer(conn=_FakeConn([]))
     db._search_dockets_postgres("test", start_date="2025-01-01")
-    sql, params = db.conn.cursor_obj.executed
+    assert len(db.conn.cursor_obj.executed) > 0, "No SQL was executed"
+    sql, params = db.conn.cursor_obj.executed[0]
     assert "d.modify_date::date >= %s::date" in sql
     assert "2025-01-01" in params
 
@@ -192,7 +207,8 @@ def test_search_dockets_postgres_start_date_filter():
 def test_search_dockets_postgres_end_date_filter():
     db = DBLayer(conn=_FakeConn([]))
     db._search_dockets_postgres("test", end_date="2026-01-01")
-    sql, params = db.conn.cursor_obj.executed
+    assert len(db.conn.cursor_obj.executed) > 0, "No SQL was executed"
+    sql, params = db.conn.cursor_obj.executed[0]
     assert "d.modify_date::date <= %s::date" in sql
     assert "2026-01-01" in params
 
@@ -200,7 +216,8 @@ def test_search_dockets_postgres_end_date_filter():
 def test_search_dockets_postgres_both_dates():
     db = DBLayer(conn=_FakeConn([]))
     db._search_dockets_postgres("test", start_date="2025-01-01", end_date="2026-01-01")
-    sql, params = db.conn.cursor_obj.executed
+    assert len(db.conn.cursor_obj.executed) > 0, "No SQL was executed"
+    sql, params = db.conn.cursor_obj.executed[0]
     assert "d.modify_date::date >= %s::date" in sql
     assert "d.modify_date::date <= %s::date" in sql
     assert "2025-01-01" in params
@@ -253,10 +270,15 @@ def test_delete_collection_returns_true_when_deleted():
             self.rowcount = 1
 
     class DeleteConn:
-        cursor_obj = DeleteCursor()
-        committed = False
-        def cursor(self): return self.cursor_obj
-        def commit(self): self.committed = True
+        def __init__(self):
+            self.cursor_obj = DeleteCursor()
+            self.committed = False
+
+        def cursor(self):
+            return self.cursor_obj
+
+        def commit(self):
+            self.committed = True
 
     conn = DeleteConn()
     db = DBLayer(conn=conn)
@@ -271,10 +293,15 @@ def test_delete_collection_returns_false_when_not_found():
             self.rowcount = 0
 
     class DeleteConn:
-        cursor_obj = DeleteCursor()
-        committed = False
-        def cursor(self): return self.cursor_obj
-        def commit(self): self.committed = True
+        def __init__(self):
+            self.cursor_obj = DeleteCursor()
+            self.committed = False
+
+        def cursor(self):
+            return self.cursor_obj
+
+        def commit(self):
+            self.committed = True
 
     conn = DeleteConn()
     db = DBLayer(conn=conn)
@@ -337,8 +364,7 @@ def test_boto3_none_branch_covered(monkeypatch):
 def test_load_dotenv_none_branch_covered(monkeypatch):
     """get_db with LOAD_DOTENV=None should not crash — covers line 15-16."""
     monkeypatch.setattr(db_module, "LOAD_DOTENV", None)
-    monkeypatch.setattr(db_module, "get_postgres_connection",
-                        lambda: DBLayer())
+    monkeypatch.setattr(db_module, "get_postgres_connection", DBLayer)
     result = db_module.get_db()
     assert isinstance(result, DBLayer)
 
@@ -346,7 +372,7 @@ def test_load_dotenv_none_branch_covered(monkeypatch):
 # --- get_docket_document_comment_totals error fallback ---
 
 def test_get_docket_document_comment_totals_empty_ids():
-    assert DBLayer().get_docket_document_comment_totals([]) == {}
+    assert not DBLayer().get_docket_document_comment_totals([])
 
 
 def test_get_docket_document_comment_totals_opensearch_error_returns_empty():
@@ -358,7 +384,7 @@ def test_get_docket_document_comment_totals_opensearch_error_returns_empty():
     result = db.get_docket_document_comment_totals(
         ["DOC-001"], opensearch_client=BrokenClient()
     )
-    assert result == {}
+    assert not result
 
 
 # --- _opensearch_use_ssl_from_env ---
@@ -374,18 +400,7 @@ def test_opensearch_use_ssl_no_credentials_no_env(monkeypatch):
 
 
 def test_opensearch_verify_certs_true(monkeypatch):
-    captured = {}
-
-    def fake_opensearch(**kwargs):
-        captured.update(kwargs)
-        return "client"
-
-    monkeypatch.setattr(db_module, "OpenSearch", fake_opensearch)
-    monkeypatch.setenv("OPENSEARCH_USE_SSL", "true")
-    monkeypatch.setenv("OPENSEARCH_VERIFY_CERTS", "true")
-    monkeypatch.delenv("OPENSEARCH_USER", raising=False)
-    monkeypatch.delenv("OPENSEARCH_PASSWORD", raising=False)
-
+    captured = _setup_opensearch_test(monkeypatch, use_ssl=True, verify_certs=True)
     db_module.get_opensearch_connection()
     assert captured["verify_certs"] is True
     assert "ssl_assert_hostname" not in captured

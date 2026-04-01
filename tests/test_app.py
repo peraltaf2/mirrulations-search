@@ -9,7 +9,7 @@ from mock_db import MockDBLayer
 from mirrsearch.app import create_app
 from mirrsearch.db import get_postgres_connection, get_opensearch_connection
 
-
+# pylint: disable=duplicate-code
 class MockOAuthHandler:
     """Mock OAuth handler that always authenticates as a test user"""
     def get_authorization_url(self):
