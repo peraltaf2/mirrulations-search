@@ -20,7 +20,10 @@ export default function Collections() {
   const [error, setError] = useState("");
   const [unauthorized, setUnauthorized] = useState(false);
   const [docketDetails, setDocketDetails] = useState({});
-  /** "modified_desc" = newest first; "modified_asc" = oldest first */
+  /**
+   * modified_desc / modified_asc = by last modified date
+   * title_asc / title_desc = A–Z / Z–A by docket_title
+   */
   const [docketSortOrder, setDocketSortOrder] = useState("modified_desc");
 
 
@@ -154,7 +157,20 @@ export default function Collections() {
       const t = Date.parse(String(raw));
       return Number.isNaN(t) ? null : t;
     };
+    const getTitle = (docketId) => {
+      const t = docketDetails[docketId]?.docket_title;
+      return (t != null ? String(t) : "").trim();
+    };
     ids.sort((a, b) => {
+      if (docketSortOrder === "title_asc" || docketSortOrder === "title_desc") {
+        const ta = getTitle(a);
+        const tb = getTitle(b);
+        const cmp = ta.localeCompare(tb, undefined, { sensitivity: "base" });
+        if (cmp !== 0) {
+          return docketSortOrder === "title_desc" ? -cmp : cmp;
+        }
+        return String(a).localeCompare(String(b));
+      }
       const ta = getTime(a);
       const tb = getTime(b);
       if (ta == null && tb == null) return 0;
@@ -255,30 +271,62 @@ export default function Collections() {
         <aside className="collections-sort-sidebar" aria-label="Sort dockets">
           <div className="collections-sort-sidebar-header">
             <h2 className="collections-sort-sidebar-heading">Sort dockets</h2>
-            <p className="collections-sort-sidebar-lede">For whichever collection is open • by modified date</p>
+            <p className="collections-sort-sidebar-lede">
+              Applies to the collection you have open. Titles sort A–Z or Z–A when loaded.
+            </p>
           </div>
           <div className="collections-sort-sidebar-body">
-            <div
-              className="collections-sort-toggle"
-              role="group"
-              aria-label="Sort dockets by modified date"
-            >
-              <button
-                type="button"
-                className={`collections-sort-btn ${docketSortOrder === "modified_desc" ? "is-selected" : ""}`}
-                onClick={() => setDocketSortOrder("modified_desc")}
+            <div className="collections-sort-section">
+              <h3 className="collections-sort-section-label">Modified date</h3>
+              <div
+                className="collections-sort-toggle"
+                role="group"
+                aria-label="Sort dockets by modified date"
               >
-                <span className="collections-sort-btn-label">Newest first</span>
-                <span className="collections-sort-btn-hint">Latest changes</span>
-              </button>
-              <button
-                type="button"
-                className={`collections-sort-btn ${docketSortOrder === "modified_asc" ? "is-selected" : ""}`}
-                onClick={() => setDocketSortOrder("modified_asc")}
+                <button
+                  type="button"
+                  className={`collections-sort-btn ${docketSortOrder === "modified_desc" ? "is-selected" : ""}`}
+                  onClick={() => setDocketSortOrder("modified_desc")}
+                >
+                  <span className="collections-sort-btn-label">Newest first</span>
+                  <span className="collections-sort-btn-hint">Latest changes</span>
+                </button>
+                <button
+                  type="button"
+                  className={`collections-sort-btn ${docketSortOrder === "modified_asc" ? "is-selected" : ""}`}
+                  onClick={() => setDocketSortOrder("modified_asc")}
+                >
+                  <span className="collections-sort-btn-label">Oldest first</span>
+                  <span className="collections-sort-btn-hint">Earliest changes</span>
+                </button>
+              </div>
+            </div>
+
+            <div className="collections-sort-section">
+              <h3 className="collections-sort-section-label">Docket title</h3>
+              <p className="collections-sort-section-desc">Alphabetical by docket title</p>
+              <div
+                className="collections-sort-toggle"
+                role="group"
+                aria-label="Sort dockets by title"
               >
-                <span className="collections-sort-btn-label">Oldest first</span>
-                <span className="collections-sort-btn-hint">Earliest changes</span>
-              </button>
+                <button
+                  type="button"
+                  className={`collections-sort-btn ${docketSortOrder === "title_asc" ? "is-selected" : ""}`}
+                  onClick={() => setDocketSortOrder("title_asc")}
+                >
+                  <span className="collections-sort-btn-label">A → Z</span>
+                  <span className="collections-sort-btn-hint">Ascending</span>
+                </button>
+                <button
+                  type="button"
+                  className={`collections-sort-btn ${docketSortOrder === "title_desc" ? "is-selected" : ""}`}
+                  onClick={() => setDocketSortOrder("title_desc")}
+                >
+                  <span className="collections-sort-btn-label">Z → A</span>
+                  <span className="collections-sort-btn-hint">Descending</span>
+                </button>
+              </div>
             </div>
           </div>
         </aside>
