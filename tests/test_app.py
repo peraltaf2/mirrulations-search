@@ -562,8 +562,8 @@ def test_get_opensearch_connection(mock_opensearch):
     """Test opensearch connection"""
     get_opensearch_connection()
     mock_opensearch.assert_called_once()
-    
-    
+
+
 # --- Download ---
 
 def test_request_download_returns_job_id(client):  # pylint: disable=redefined-outer-name
