@@ -7,7 +7,9 @@ ingest_docket module to load data into the database. Optionally ingests full
 Federal Register documents (API → federal_register_documents / cfrparts) using
 ``frDocNum`` values from regulations.gov document JSON. Derived PDF attachment
 text under ``derived-data/.../extracted_txt`` is indexed into OpenSearch
-``comments_extracted_text`` (not the ``documents`` index).
+``comments_extracted_text`` (not the ``documents`` index). Comment JSON under
+``raw-data/comments/*.json`` is indexed into OpenSearch ``comments`` (same shape as
+``ingest_opensearch.py``).
 
 Usage:
     python db/ingest.py FAA-2025-0618
@@ -48,6 +50,8 @@ from mirrsearch.db import get_opensearch_connection
 from ingest_docket import (
     ingest_docket_and_documents,
     ingest_comments,
+    extract_comment,
+    load_raw_json,
     _ingest_summary,
     _require_ingest_schema,
     _ensure_comments_document_fk,
@@ -71,6 +75,27 @@ log = logging.getLogger(__name__)
 FR_API_URL = "https://www.federalregister.gov/api/v1/documents/{}.json"
 
 _REQUIRED_FR_TABLES = frozenset({"federal_register_documents", "cfrparts"})
+
+OPENSEARCH_COMMENTS_INDEX = "comments"
+
+COMMENTS_INDEX_BODY: dict[str, Any] = {
+    "mappings": {
+        "properties": {
+            "commentId": {
+                "type": "text",
+                "fields": {"keyword": {"type": "keyword", "ignore_above": 256}},
+            },
+            "commentText": {
+                "type": "text",
+                "fields": {"keyword": {"type": "keyword", "ignore_above": 256}},
+            },
+            "docketId": {
+                "type": "text",
+                "fields": {"keyword": {"type": "keyword", "ignore_above": 256}},
+            },
+        }
+    }
+}
 
 OPENSEARCH_COMMENTS_EXTRACTED_TEXT_INDEX = "comments_extracted_text"
 
@@ -239,6 +264,83 @@ def ingest_htm_files(docket_dir: Path, client: Any) -> None:
                 "documentText": item["documentHtm"],
             },
         )
+
+
+def iter_comment_json_paths(docket_dir: Path) -> list[Path]:
+    """Paths to ``*.json`` under ``raw-data/comments/`` (non-recursive)."""
+    cdir = docket_dir / "raw-data" / "comments"
+    if not cdir.is_dir():
+        return []
+    return sorted(p for p in cdir.glob("*.json") if p.is_file())
+
+
+def _opensearch_comment_body(record: dict[str, Any]) -> dict[str, Any] | None:
+    """Map ``extract_comment`` output to the OpenSearch ``comments`` document shape."""
+    cid = record.get("comment_id")
+    did = record.get("docket_id")
+    if not cid or not did:
+        return None
+    raw = record.get("comment")
+    if raw is None:
+        text = ""
+    elif isinstance(raw, str):
+        text = raw
+    else:
+        text = str(raw)
+    return {
+        "commentId": str(cid),
+        "docketId": str(did),
+        "commentText": text,
+    }
+
+
+def ensure_comments_index(client: Any) -> None:
+    """Create the OpenSearch ``comments`` index if it does not exist."""
+    if client.indices.exists(index=OPENSEARCH_COMMENTS_INDEX):
+        return
+    client.indices.create(index=OPENSEARCH_COMMENTS_INDEX, body=COMMENTS_INDEX_BODY)
+
+
+def ingest_comment_json_to_opensearch(docket_dir: Path, client: Any) -> int:
+    """
+    Index regulations.gov comment JSON from ``raw-data/comments/*.json`` into OpenSearch
+    ``comments`` (``commentId``, ``commentText``, ``docketId``).
+    """
+    paths = iter_comment_json_paths(docket_dir)
+    if not paths:
+        return 0
+    ensure_comments_index(client)
+    indexed = 0
+    for path in paths:
+        payload = load_raw_json(path)
+        if not isinstance(payload, dict):
+            log.warning("Skipping %s — expected JSON object", path.name)
+            continue
+        data = payload.get("data")
+        if not isinstance(data, dict):
+            log.warning("Skipping %s — missing data object", path.name)
+            continue
+        record = extract_comment(data)
+        body = _opensearch_comment_body(record)
+        if not body:
+            log.warning(
+                "Skipping %s — missing comment_id or docket_id for OpenSearch",
+                path.name,
+            )
+            continue
+        client.index(
+            index=OPENSEARCH_COMMENTS_INDEX,
+            id=body["commentId"],
+            body=body,
+        )
+        indexed += 1
+    if indexed:
+        log.info(
+            "OpenSearch: indexed %d comment(s) into %s",
+            indexed,
+            OPENSEARCH_COMMENTS_INDEX,
+        )
+    return indexed
 
 
 def ensure_comments_extracted_text_index(client: Any) -> None:
@@ -693,6 +795,8 @@ def main():
     try:
         client = get_opensearch_connection()
         ingest_htm_files(docket_dir, client)
+        if not args.skip_comments_ingest:
+            ingest_comment_json_to_opensearch(docket_dir, client)
         if extracted_records:
             ensure_comments_extracted_text_index(client)
             ingest_extracted_text_to_comments_extracted_text(client, extracted_records)
