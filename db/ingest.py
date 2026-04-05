@@ -14,6 +14,8 @@ text under ``derived-data/.../extracted_txt`` is indexed into OpenSearch
 Usage:
     python db/ingest.py FAA-2025-0618
     python db/ingest.py --help
+
+See ``db/INGEST.md`` for prerequisites, flags, and outputs.
 """
 from __future__ import annotations
 
