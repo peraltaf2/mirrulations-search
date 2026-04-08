@@ -356,7 +356,7 @@ class InternalLogic:  # pylint: disable=too-few-public-methods
             totals = totals_map.get(did, {})
             result["documentDenominator"] = totals.get("document_total_count", 0)
             result["commentDenominator"] = totals.get("comment_total_count", 0)
-            
+
         for result in all_dockets:
             _sanitize_search_row_for_json(result)
             _transform_cfr_refs(result)
